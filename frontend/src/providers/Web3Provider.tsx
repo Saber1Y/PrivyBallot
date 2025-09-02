@@ -1,28 +1,22 @@
-'use client';
+"use client";
 
-import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
-import { WagmiProvider } from 'wagmi';
-import { mainnet, sepolia, hardhat } from 'wagmi/chains';
-import { QueryClientProvider, QueryClient } from '@tanstack/react-query';
-import '@rainbow-me/rainbowkit/styles.css';
+import { PrivyProvider } from "@privy-io/react-auth";
 
-const config = getDefaultConfig({
-  appName: 'PrivyBallot',
-  projectId: 'YOUR_PROJECT_ID', // Get this from WalletConnect Cloud
-  chains: [hardhat, sepolia, mainnet],
-  ssr: true, // If your dApp uses server side rendering (SSR)
-});
+export default function Web3Provider({ children }: { children: React.ReactNode }) {
+  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID as string;
 
-const queryClient = new QueryClient();
-
-export function Web3Provider({ children }: { children: React.ReactNode }) {
   return (
-    <WagmiProvider config={config}>
-      <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider>
-          {children}
-        </RainbowKitProvider>
-      </QueryClientProvider>
-    </WagmiProvider>
+    <PrivyProvider
+      appId={appId}
+      config={{
+        loginMethods: ["wallet", "email", "google", "apple"],
+        // Enable embedded wallets
+        embeddedWallets: {
+          createOnLogin: "users-without-wallets",
+        },
+      }}
+    >
+      {children}
+    </PrivyProvider>
   );
 }

@@ -1,164 +1,357 @@
-'use client';
+"use client";
 
-import { Header } from '@/components/Header';
-import { Shield, Lock, Eye, Users, CheckCircle, Clock } from 'lucide-react';
+import Link from "next/link";
+import { Button } from "@/components/ui/Button";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/Card";
+import { Shield, Lock, Vote, Zap, Users, Key } from "lucide-react";
+import { BackgroundBeamsWithCollision } from "@/components/ui/background-beams-with-collision";
+import { Meteors } from "@/components/ui/meteors";
 
-export default function Home() {
+export default function Landing() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50 dark:from-gray-950 dark:via-gray-900 dark:to-indigo-950">
-      <Header />
-      
-      {/* Hero Section */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center mb-16">
-          <div className="flex justify-center mb-6">
-            <div className="flex items-center justify-center w-20 h-20 bg-indigo-600 rounded-2xl shadow-lg">
-              <Shield className="w-10 h-10 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {/* Header / Navigation */}
+      <header className="sticky top-0 z-10 bg-white/70 backdrop-blur border-b border-gray-200">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-md bg-blue-600 text-white flex items-center justify-center font-bold">
+              PB
+            </div>
+            <span className="font-semibold text-gray-900">PrivyBallot</span>
+          </Link>
+          <nav className="hidden md:flex items-center gap-6 text-sm text-gray-700">
+            <a href="#features" className="hover:text-gray-900">
+              Features
+            </a>
+            <a href="#how" className="hover:text-gray-900">
+              How it works
+            </a>
+            <Link href="/dashboard" className="hover:text-gray-900">
+              Dashboard
+            </Link>
+            <a
+              href="https://github.com/"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-gray-900"
+            >
+              GitHub
+            </a>
+          </nav>
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard">
+              <Button size="sm">Open Dashboard</Button>
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Main */}
+      <main>
+        {/* Hero - Beams with Collision */}
+        <BackgroundBeamsWithCollision>
+          <div className="container mx-auto px-4 py-20 relative z-10">
+            <div className="grid md:grid-cols-2 gap-10 items-center">
+              <div>
+                <span className="inline-block mb-4 text-xs font-medium text-blue-700 bg-blue-100 px-3 py-1 rounded-full">
+                  FHE + Privy + Next.js
+                </span>
+                <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-4">
+                  Confidential voting for DAOs, made simple
+                </h1>
+                <p className="text-lg text-gray-700 mb-6">
+                  Create proposals, cast encrypted votes, and reveal results
+                  securely with Zama FHEVM. Wallet auth powered by Privy.
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Link href="/dashboard">
+                    <Button className="px-6 h-12 text-base">Get Started</Button>
+                  </Link>
+                  <a
+                    href="https://github.com/"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <Button variant="outline" className="px-6 h-12 text-base">
+                      View on GitHub
+                    </Button>
+                  </a>
+                </div>
+                <p className="mt-3 text-sm text-gray-500">
+                  UI-first prototype. FHEVM integration coming next.
+                </p>
+              </div>
+              <div className="relative">
+                <div className="absolute -inset-4 bg-gradient-to-tr from-blue-200 to-indigo-200 blur-2xl rounded-full opacity-60"></div>
+                <Card className="relative p-6">
+                  <CardHeader className="pb-2">
+                    <CardTitle>Secure, private, verifiable</CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-gray-600">
+                    <ul className="space-y-3">
+                      <li className="flex items-center gap-2">
+                        <Shield className="h-5 w-5 text-blue-600" /> End-to-end
+                        encrypted votes
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Lock className="h-5 w-5 text-blue-600" /> Results
+                        revealed only after deadline
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <Key className="h-5 w-5 text-blue-600" /> Threshold
+                        decryption via FHE
+                      </li>
+                    </ul>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </div>
-          
-          <h1 className="text-5xl font-bold text-gray-900 dark:text-white mb-6">
-            Vote with Complete
-            <span className="text-indigo-600 dark:text-indigo-400"> Privacy</span>
-          </h1>
-          
-          <p className="text-xl text-gray-600 dark:text-gray-300 max-w-3xl mx-auto mb-8">
-            PrivyBallot uses Zama's Fully Homomorphic Encryption to ensure your vote remains 
-            completely private while maintaining transparency and verifiability.
+        </BackgroundBeamsWithCollision>
+
+        {/* Features */}
+        <section id="features" className="container mx-auto px-4 py-16">
+          <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center">
+            Features
+          </h2>
+          <p className="text-gray-600 text-center max-w-2xl mx-auto mb-10">
+            Built with modern primitives and a clean developer experience.
           </p>
-          
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-lg font-semibold transition-colors shadow-lg">
-              View Proposals
-            </button>
-            <button className="border border-indigo-600 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950 px-8 py-3 rounded-lg font-semibold transition-colors">
-              Create Proposal
-            </button>
-          </div>
-        </div>
-
-        {/* Features Grid */}
-        <div className="grid md:grid-cols-3 gap-8 mb-16">
-          <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
-            <div className="flex items-center justify-center w-12 h-12 bg-green-100 dark:bg-green-900 rounded-lg mb-4">
-              <Lock className="w-6 h-6 text-green-600 dark:text-green-400" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-              Complete Privacy
-            </h3>
-            <p className="text-gray-600 dark:text-gray-300">
-              Your vote choices are never visible on-chain. Even validators can't see how you voted.
-            </p>
-          </div>
-
-          <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
-            <div className="flex items-center justify-center w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg mb-4">
-              <Eye className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-              Transparent Results
-            </h3>
-            <p className="text-gray-600 dark:text-gray-300">
-              Final tallies are cryptographically verified and publicly visible after voting ends.
-            </p>
-          </div>
-
-          <div className="bg-white dark:bg-gray-900 p-8 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800">
-            <div className="flex items-center justify-center w-12 h-12 bg-purple-100 dark:bg-purple-900 rounded-lg mb-4">
-              <Users className="w-6 h-6 text-purple-600 dark:text-purple-400" />
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-              Democratic Governance
-            </h3>
-            <p className="text-gray-600 dark:text-gray-300">
-              Anyone can create proposals and participate in shaping the community's future.
-            </p>
-          </div>
-        </div>
-
-        {/* Active Proposals Section */}
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Active Proposals
-            </h2>
-            <button className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold">
-              View All
-            </button>
-          </div>
-
-          {/* Sample Proposal Cards */}
-          <div className="space-y-4">
-            <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    Should we implement new governance features?
-                  </h3>
-                  <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                    <span className="flex items-center space-x-1">
-                      <Clock className="w-4 h-4" />
-                      <span>2 days remaining</span>
-                    </span>
-                    <span>•</span>
-                    <span>127 votes cast</span>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Card 1 */}
+            <div className="relative">
+              <div className="absolute inset-0 h-full w-full scale-[0.92] transform rounded-2xl bg-gradient-to-r from-blue-500/40 to-teal-500/40 blur-3xl" />
+              <Card className="relative overflow-hidden p-6 border-gray-200 bg-gray-900 text-white shadow-xl">
+                <div className="mb-3 flex h-6 w-6 items-center justify-center rounded-full border border-gray-700">
+                  <div className="h-1 w-1 rounded-full bg-gray-400" />
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-md bg-blue-600 text-white flex items-center justify-center">
+                    <Vote className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">DAO proposals</h3>
+                    <p className="text-sm text-gray-300">
+                      Create, list, and manage proposals with deadlines and
+                      states.
+                    </p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span className="bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-1 rounded-full text-xs font-medium">
-                    Active
-                  </span>
-                </div>
-              </div>
-              
-              <div className="flex space-x-3">
-                <button className="flex-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 py-2 px-4 rounded-lg font-medium hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors">
-                  Vote Yes
-                </button>
-                <button className="flex-1 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 py-2 px-4 rounded-lg font-medium hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors">
-                  Vote No
-                </button>
-              </div>
+                <Meteors number={14} />
+              </Card>
             </div>
 
-            <div className="border border-gray-200 dark:border-gray-700 rounded-xl p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                    Proposal to upgrade smart contract infrastructure
-                  </h3>
-                  <div className="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-                    <span className="flex items-center space-x-1">
-                      <CheckCircle className="w-4 h-4" />
-                      <span>Ended</span>
-                    </span>
-                    <span>•</span>
-                    <span>89 votes cast</span>
+            {/* Card 2 */}
+            <div className="relative">
+              <div className="absolute inset-0 h-full w-full scale-[0.92] transform rounded-2xl bg-gradient-to-r from-indigo-500/40 to-cyan-500/40 blur-3xl" />
+              <Card className="relative overflow-hidden p-6 border-gray-200 bg-gray-900 text-white shadow-xl">
+                <div className="mb-3 flex h-6 w-6 items-center justify-center rounded-full border border-gray-700">
+                  <div className="h-1 w-1 rounded-full bg-gray-400" />
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-md bg-indigo-600 text-white flex items-center justify-center">
+                    <Lock className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Encrypted votes</h3>
+                    <p className="text-sm text-gray-300">
+                      Votes are kept private on-chain via Zama&#39;s FHEVM.
+                    </p>
                   </div>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span className="bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 px-2 py-1 rounded-full text-xs font-medium">
-                    Completed
-                  </span>
+                <Meteors number={12} />
+              </Card>
+            </div>
+
+            {/* Card 3 */}
+            <div className="relative">
+              <div className="absolute inset-0 h-full w-full scale-[0.92] transform rounded-2xl bg-gradient-to-r from-purple-500/40 to-pink-500/40 blur-3xl" />
+              <Card className="relative overflow-hidden p-6 border-gray-200 bg-gray-900 text-white shadow-xl">
+                <div className="mb-3 flex h-6 w-6 items-center justify-center rounded-full border border-gray-700">
+                  <div className="h-1 w-1 rounded-full bg-gray-400" />
                 </div>
-              </div>
-              
-              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-                <div className="flex justify-between text-sm font-medium mb-2">
-                  <span className="text-green-600 dark:text-green-400">Yes: 67</span>
-                  <span className="text-red-600 dark:text-red-400">No: 22</span>
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-md bg-purple-600 text-white flex items-center justify-center">
+                    <Users className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Privy auth</h3>
+                    <p className="text-sm text-gray-300">
+                      Fast, secure wallet onboarding with @privy-io/react-auth.
+                    </p>
+                  </div>
                 </div>
-                <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                  <div 
-                    className="bg-green-500 h-2 rounded-full" 
-                    style={{ width: '75%' }}
-                  ></div>
+                <Meteors number={10} />
+              </Card>
+            </div>
+
+            {/* Card 4 */}
+            <div className="relative">
+              <div className="absolute inset-0 h-full w-full scale-[0.92] transform rounded-2xl bg-gradient-to-r from-emerald-500/40 to-green-500/40 blur-3xl" />
+              <Card className="relative overflow-hidden p-6 border-gray-200 bg-gray-900 text-white shadow-xl">
+                <div className="mb-3 flex h-6 w-6 items-center justify-center rounded-full border border-gray-700">
+                  <div className="h-1 w-1 rounded-full bg-gray-400" />
                 </div>
-              </div>
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-md bg-emerald-600 text-white flex items-center justify-center">
+                    <Zap className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Next.js 15</h3>
+                    <p className="text-sm text-gray-300">
+                      App Router, optimized builds, and Tailwind styling.
+                    </p>
+                  </div>
+                </div>
+                <Meteors number={12} />
+              </Card>
+            </div>
+
+            {/* Card 5 */}
+            <div className="relative">
+              <div className="absolute inset-0 h-full w-full scale-[0.92] transform rounded-2xl bg-gradient-to-r from-rose-500/40 to-orange-500/40 blur-3xl" />
+              <Card className="relative overflow-hidden p-6 border-gray-200 bg-gray-900 text-white shadow-xl">
+                <div className="mb-3 flex h-6 w-6 items-center justify-center rounded-full border border-gray-700">
+                  <div className="h-1 w-1 rounded-full bg-gray-400" />
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-md bg-rose-600 text-white flex items-center justify-center">
+                    <Shield className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">Verifiable results</h3>
+                    <p className="text-sm text-gray-300">
+                      Reveal tallies after the deadline with proof of integrity.
+                    </p>
+                  </div>
+                </div>
+                <Meteors number={16} />
+              </Card>
+            </div>
+
+            {/* Card 6 */}
+            <div className="relative">
+              <div className="absolute inset-0 h-full w-full scale-[0.92] transform rounded-2xl bg-gradient-to-r from-amber-500/40 to-yellow-500/40 blur-3xl" />
+              <Card className="relative overflow-hidden p-6 border-gray-200 bg-gray-900 text-white shadow-xl">
+                <div className="mb-3 flex h-6 w-6 items-center justify-center rounded-full border border-gray-700">
+                  <div className="h-1 w-1 rounded-full bg-gray-400" />
+                </div>
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-md bg-amber-600 text-white flex items-center justify-center">
+                    <Key className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold">FHE-ready</h3>
+                    <p className="text-sm text-gray-300">
+                      Clean abstraction for future FHE contract integration.
+                    </p>
+                  </div>
+                </div>
+                <Meteors number={10} />
+              </Card>
             </div>
           </div>
-        </div>
+        </section>
+
+        {/* How it works */}
+        <section id="how" className="container mx-auto px-4 py-16">
+          <h2 className="text-3xl font-bold text-gray-900 mb-6 text-center">
+            How it works
+          </h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* Step 1 */}
+            <div className="relative">
+              <div className="absolute inset-0 h-full w-full scale-[0.92] transform rounded-2xl bg-gradient-to-r from-blue-500/40 to-cyan-500/40 blur-3xl" />
+              <Card className="relative overflow-hidden p-6 border-gray-200 bg-gray-900 text-white shadow-xl">
+                <div className="mb-3 flex h-6 w-6 items-center justify-center rounded-full border border-gray-700">
+                  <div className="h-1 w-1 rounded-full bg-gray-400" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">1. Create</h3>
+                <p className="text-gray-300">
+                  Propose a question and set a voting deadline. The app prepares
+                  encryption keys.
+                </p>
+                <Meteors number={10} />
+              </Card>
+            </div>
+
+            {/* Step 2 */}
+            <div className="relative">
+              <div className="absolute inset-0 h-full w-full scale-[0.92] transform rounded-2xl bg-gradient-to-r from-purple-500/40 to-pink-500/40 blur-3xl" />
+              <Card className="relative overflow-hidden p-6 border-gray-200 bg-gray-900 text-white shadow-xl">
+                <div className="mb-3 flex h-6 w-6 items-center justify-center rounded-full border border-gray-700">
+                  <div className="h-1 w-1 rounded-full bg-gray-400" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">2. Vote</h3>
+                <p className="text-gray-300">
+                  Members cast encrypted yes/no votes that remain private
+                  on-chain.
+                </p>
+                <Meteors number={10} />
+              </Card>
+            </div>
+
+            {/* Step 3 */}
+            <div className="relative">
+              <div className="absolute inset-0 h-full w-full scale-[0.92] transform rounded-2xl bg-gradient-to-r from-emerald-500/40 to-teal-500/40 blur-3xl" />
+              <Card className="relative overflow-hidden p-6 border-gray-200 bg-gray-900 text-white shadow-xl">
+                <div className="mb-3 flex h-6 w-6 items-center justify-center rounded-full border border-gray-700">
+                  <div className="h-1 w-1 rounded-full bg-gray-400" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">3. Reveal</h3>
+                <p className="text-gray-300">
+                  After the deadline, decrypt and publish final tallies for
+                  everyone to verify.
+                </p>
+                <Meteors number={10} />
+              </Card>
+            </div>
+          </div>
+        </section>
+
+        {/* Secondary CTA */}
+        <section className="container mx-auto px-4 pb-20">
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-8 md:p-10 text-white flex flex-col md:flex-row items-center justify-between gap-6">
+            <div>
+              <h3 className="text-2xl font-bold mb-2">
+                Ready to try PrivyBallot?
+              </h3>
+              <p className="text-white/90">
+                Open the dashboard and create your first proposal in seconds.
+              </p>
+            </div>
+            <Link href="/dashboard">
+              <Button
+                variant="ghost"
+                className="bg-white text-blue-700 hover:bg-gray-100"
+              >
+                Go to Dashboard
+              </Button>
+            </Link>
+            <Meteors number={14} className="bg-white/70 before:from-white/80" />
+          </div>
+        </section>
       </main>
+
+      {/* Footer */}
+      <footer className="border-t border-gray-200 bg-white">
+        <div className="container mx-auto px-4 py-6 flex flex-col md:flex-row items-center justify-between gap-3 text-sm text-gray-600">
+          <p>© {new Date().getFullYear()} PrivyBallot. All rights reserved.</p>
+          <div className="flex items-center gap-4">
+            <a
+              href="https://github.com/"
+              target="_blank"
+              rel="noreferrer"
+              className="hover:text-gray-900"
+            >
+              GitHub
+            </a>
+            <Link href="/dashboard" className="hover:text-gray-900">
+              Dashboard
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

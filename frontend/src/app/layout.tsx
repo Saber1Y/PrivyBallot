@@ -1,21 +1,18 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Sora } from "next/font/google";
 import "./globals.css";
-import { Web3Provider } from "@/providers/Web3Provider";
+import Web3Provider from "@/providers/Web3Provider";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const sora = Sora({
+  // Use a dedicated CSS variable for Sora and map Tailwind's --font-sans to it in globals.css
+  variable: "--font-sora",
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  weight: ["300", "400", "600", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "PrivyBallot - Confidential Voting DAO",
-  description: "Privacy-preserving voting using Zama's FHEVM technology",
+  title: "PrivyBallot",
+  description: "Confidential Voting DAO",
 };
 
 export default function RootLayout({
@@ -24,13 +21,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <Web3Provider>
-          {children}
-        </Web3Provider>
+    <html lang="en" className={sora.variable}>
+      <body className={"antialiased"}>
+        <Web3Provider>{children}</Web3Provider>
       </body>
     </html>
   );
