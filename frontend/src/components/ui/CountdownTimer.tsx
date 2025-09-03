@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Clock } from "lucide-react";
 
 interface CountdownTimerProps {
@@ -22,16 +22,23 @@ export function CountdownTimer({
   onExpire,
   className = "",
 }: CountdownTimerProps) {
+  const hasExpiredRef = useRef(false);
+
   const [timeLeft, setTimeLeft] = useState<TimeLeft>(() =>
     calculateTimeLeft(deadline)
   );
 
   useEffect(() => {
+    // Reset the expired flag when deadline changes
+    hasExpiredRef.current = false;
+
     const timer = setInterval(() => {
       const newTimeLeft = calculateTimeLeft(deadline);
       setTimeLeft(newTimeLeft);
 
-      if (newTimeLeft.total <= 0 && onExpire) {
+      // Only call onExpire once when the proposal first expires
+      if (newTimeLeft.total <= 0 && !hasExpiredRef.current && onExpire) {
+        hasExpiredRef.current = true;
         onExpire();
       }
     }, 1000);

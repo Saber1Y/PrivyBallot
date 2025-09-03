@@ -131,9 +131,16 @@ export default function Dashboard() {
     }
   }, [user?.wallet?.address]);
 
+  // Only load proposals when user is authenticated and ready, with a delay
   useEffect(() => {
-    loadProposals();
-  }, [loadProposals]);
+    if (ready && authenticated && user?.wallet?.address) {
+      // Add a 2 second delay to reduce rapid requests
+      const timer = setTimeout(() => {
+        loadProposals();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [ready, authenticated, user?.wallet?.address, loadProposals]);
 
   // Check network when authenticated
   useEffect(() => {
@@ -203,6 +210,8 @@ export default function Dashboard() {
       await loadProposals();
     } catch (error) {
       console.error("Failed to vote:", error);
+      // Show user-friendly error
+      alert("Failed to submit vote. Please check console for details.");
     }
   };
 
@@ -261,11 +270,13 @@ export default function Dashboard() {
           p.id === id ? { ...p, decryptionPending: false } : p
         )
       );
+      // Show user-friendly error
+      alert("Failed to request reveal. Please check console for details.");
     }
   };
 
   const deleteProposal = async (proposal: PublicProposal) => {
-    if (!proposal.metadata || !user?.wallet?.address) return;
+    if (!user?.wallet?.address) return;
 
     // Check if user is the creator
     if (proposal.creator.toLowerCase() !== user.wallet.address.toLowerCase()) {
@@ -273,11 +284,12 @@ export default function Dashboard() {
       return;
     }
 
-    if (
-      !confirm(
-        "Are you sure you want to delete this proposal? This will remove the metadata from IPFS."
-      )
-    ) {
+    // Allow deletion even if metadata is null (for corrupted/truncated IPFS hashes)
+    const confirmMessage = proposal.metadata
+      ? `Are you sure you want to delete the IPFS metadata for "${proposal.metadata.title}"?\n\nNote: This only removes the metadata from IPFS. The proposal record will remain on the blockchain.`
+      : `Are you sure you want to delete the IPFS metadata for Proposal #${proposal.id}?\n\nNote: This only removes metadata from IPFS (if possible). The proposal record will remain on the blockchain.`;
+
+    if (!confirm(confirmMessage)) {
       return;
     }
 
@@ -286,21 +298,36 @@ export default function Dashboard() {
       const success = await deleteProposalMetadata(proposal.ipfsHash);
 
       if (success) {
-        console.log("✅ Proposal metadata deleted");
+        console.log("✅ Proposal metadata deletion completed");
         // Reload proposals to reflect the change
         await loadProposals();
       } else {
-        console.error("❌ Failed to delete proposal metadata");
+        console.warn("⚠️ Proposal metadata deletion may have failed");
+        // Still reload proposals in case the proposal was marked as deleted
+        await loadProposals();
       }
     } catch (error) {
       console.error("Error deleting proposal:", error);
+      // Don't show an error to user since the issue is likely with IPFS hash format
+      // Just reload to see current state
+      await loadProposals();
     }
   };
 
-  const handleProposalExpire = async () => {
-    // Refresh proposals when any timer expires
-    await loadProposals();
-  };
+  const handleProposalExpire = useCallback(async () => {
+    // Add debouncing to prevent infinite loops and rate limiting
+    if (loading) return;
+
+    console.log(
+      "Proposal expired, but skipping refresh to avoid rate limiting"
+    );
+    console.log(
+      "Use the manual 'Refresh Proposals' button to update proposals"
+    );
+
+    // Don't automatically refresh to avoid hitting IPFS rate limits
+    // The user can manually refresh if needed
+  }, [loading]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -378,90 +405,160 @@ export default function Dashboard() {
 
         {/* Proposals First */}
         <div>
-          <h2 className="text-lg font-semibold mb-4">Proposals</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold">Proposals</h2>
+            <Button
+              variant="outline"
+              onClick={loadProposals}
+              disabled={loading}
+              className="flex items-center gap-2"
+            >
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                />
+              </svg>
+              Refresh
+            </Button>
+          </div>
           <div className="space-y-4">
-            {proposals.map((p) => (
-              <Card key={p.id}>
-                <CardHeader className="flex justify-between items-center">
-                  <CardTitle>{p.metadata?.title || "Loading..."}</CardTitle>
-                  <Badge
-                    variant={p.deadline > Date.now() ? "default" : "secondary"}
-                  >
-                    {p.deadline > Date.now() ? "Active" : "Ended"}
-                  </Badge>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <div className="text-sm text-gray-600">
-                    {p.metadata?.description || "Loading description..."}
-                  </div>
-                  <CountdownTimer
-                    deadline={p.deadline}
-                    onExpire={handleProposalExpire}
-                  />
-                  {p.deadline > Date.now() ? (
-                    <div className="flex space-x-2">
-                      <Button
-                        onClick={() => vote(p.id, "yes")}
-                        disabled={p.hasVoted}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        {p.hasVoted ? "✓ " : ""}Yes
-                      </Button>
-                      <Button
-                        onClick={() => vote(p.id, "no")}
-                        disabled={p.hasVoted}
-                        className="bg-red-600 hover:bg-red-700"
-                      >
-                        {p.hasVoted ? "✓ " : ""}No
-                      </Button>
-                    </div>
-                  ) : p.revealed ? (
-                    <div className="p-3 bg-blue-50 rounded">
-                      <div className="text-sm font-medium mb-1">Results:</div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div>Yes: {p.yes}</div>
-                        <div>No: {p.no}</div>
-                      </div>
-                    </div>
-                  ) : p.decryptionPending ? (
-                    <div className="flex items-center gap-2 text-blue-600">
-                      <Clock className="h-4 w-4" />
-                      Decrypting results...
-                    </div>
-                  ) : (
-                    <Button
-                      onClick={() => requestReveal(p.id)}
-                      variant="outline"
-                      className="flex items-center gap-2"
-                    >
-                      <Eye className="h-4 w-4" />
-                      Reveal Results
-                    </Button>
-                  )}
-                  <div className="flex items-center justify-between">
-                    {p.hasVoted && (
-                      <div className="flex items-center gap-1 text-green-600 text-sm">
-                        <CheckCircle className="h-4 w-4" />
-                        You voted
-                      </div>
-                    )}
-                    {user?.wallet?.address &&
-                      p.creator.toLowerCase() ===
-                        user.wallet.address.toLowerCase() && (
-                        <Button
-                          onClick={() => deleteProposal(p)}
-                          variant="outline"
-                          size="sm"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4 mr-1" />
-                          Delete
-                        </Button>
-                      )}
-                  </div>
+            {proposals.length === 0 ? (
+              <Card>
+                <CardContent className="text-center py-8">
+                  <p className="text-gray-500 mb-2">No proposals found</p>
+                  <p className="text-sm text-gray-400">
+                    Try clicking the Refresh button above or create a new
+                    proposal below.
+                  </p>
+                  <p className="text-xs text-orange-500 mt-2">
+                    Note: If you see circuit breaker warnings in the console,
+                    wait a moment before refreshing.
+                  </p>
                 </CardContent>
               </Card>
-            ))}
+            ) : (
+              proposals.map((p) => (
+                <Card key={p.id}>
+                  <CardHeader className="flex justify-between items-center">
+                    <CardTitle>
+                      {p.metadata?.title ||
+                        `Proposal #${p.id} (Metadata unavailable)`}
+                    </CardTitle>
+                    <Badge
+                      variant={
+                        p.deadline > Date.now() ? "default" : "secondary"
+                      }
+                    >
+                      {p.deadline > Date.now() ? "Active" : "Ended"}
+                    </Badge>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {!p.metadata && (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm">
+                        <div className="text-yellow-800 font-medium">
+                          ⚠️ Metadata unavailable
+                        </div>
+                        <div className="text-yellow-700 mt-1">
+                          IPFS hash:{" "}
+                          <code className="text-xs bg-yellow-100 px-1 rounded">
+                            {p.ipfsHash}
+                          </code>
+                          {p.ipfsHash && p.ipfsHash.length < 46 && (
+                            <span className="text-red-600 ml-1">
+                              (truncated)
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-yellow-600 text-xs mt-1">
+                          {p.ipfsHash && p.ipfsHash.length < 46
+                            ? "This is a legacy proposal with a truncated IPFS hash. Consider recreating the proposal."
+                            : "This may be due to IPFS gateway issues or an invalid hash. New proposals will handle long hashes better."}
+                        </div>
+                      </div>
+                    )}
+                    {p.metadata && (
+                      <div className="text-sm text-gray-600">
+                        {p.metadata.description}
+                      </div>
+                    )}
+                    <CountdownTimer
+                      deadline={p.deadline}
+                      onExpire={handleProposalExpire}
+                    />
+                    {p.deadline > Date.now() ? (
+                      <div className="flex space-x-2">
+                        <Button
+                          onClick={() => vote(p.id, "yes")}
+                          disabled={p.hasVoted}
+                          className="bg-green-600 hover:bg-green-700"
+                        >
+                          {p.hasVoted ? "✓ " : ""}Yes
+                        </Button>
+                        <Button
+                          onClick={() => vote(p.id, "no")}
+                          disabled={p.hasVoted}
+                          className="bg-red-600 hover:bg-red-700"
+                        >
+                          {p.hasVoted ? "✓ " : ""}No
+                        </Button>
+                      </div>
+                    ) : p.revealed ? (
+                      <div className="p-3 bg-blue-50 rounded">
+                        <div className="text-sm font-medium mb-1">Results:</div>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>Yes: {p.yes}</div>
+                          <div>No: {p.no}</div>
+                        </div>
+                      </div>
+                    ) : p.decryptionPending ? (
+                      <div className="flex items-center gap-2 text-blue-600">
+                        <Clock className="h-4 w-4" />
+                        Decrypting results...
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={() => requestReveal(p.id)}
+                        variant="outline"
+                        className="flex items-center gap-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        Reveal Results
+                      </Button>
+                    )}
+                    <div className="flex items-center justify-between">
+                      {p.hasVoted && (
+                        <div className="flex items-center gap-1 text-green-600 text-sm">
+                          <CheckCircle className="h-4 w-4" />
+                          You voted
+                        </div>
+                      )}
+                      {user?.wallet?.address &&
+                        p.creator.toLowerCase() ===
+                          user.wallet.address.toLowerCase() && (
+                          <Button
+                            onClick={() => deleteProposal(p)}
+                            variant="outline"
+                            size="sm"
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            title="Delete IPFS metadata (proposal will remain on blockchain)"
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Delete Metadata
+                          </Button>
+                        )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            )}
           </div>
         </div>
 

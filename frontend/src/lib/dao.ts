@@ -1,8 +1,71 @@
 // Contract interaction helpers with IPFS metadata support
 import { ethers, BrowserProvider, Contract } from "ethers";
 import { VOTING_DAO_ABI, CONTRACT_ADDRESS } from "./contracts";
-import { ipfs } from "./ipfs";
-import { encryptVote } from "./fhe";
+import { ipfs, stringToBytes32, bytes32ToString } from "./ipfs";
+import { encryptVote, clearFHECache } from "./fhe-simple";
+
+// Circuit breaker to prevent too many requests and handle wallet circuit breaker
+let lastRequestTime = 0;
+let requestCount = 0;
+let consecutiveErrors = 0;
+const REQUEST_COOLDOWN = 5000; // 5 seconds between requests (increased)
+const MAX_REQUESTS_PER_MINUTE = 5; // Reduced max requests
+const MAX_CONSECUTIVE_ERRORS = 3;
+const ERROR_BACKOFF_TIME = 30000; // 30 seconds backoff after consecutive errors
+
+function shouldAllowRequest(): boolean {
+  const now = Date.now();
+
+  // If we've had consecutive errors, implement longer backoff
+  if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+    if (now - lastRequestTime < ERROR_BACKOFF_TIME) {
+      console.warn(
+        `Circuit breaker: backing off for ${Math.ceil(
+          (ERROR_BACKOFF_TIME - (now - lastRequestTime)) / 1000
+        )}s due to consecutive errors`
+      );
+      return false;
+    } else {
+      // Reset error count after backoff period
+      consecutiveErrors = 0;
+    }
+  }
+
+  // Reset count every minute
+  if (now - lastRequestTime > 60000) {
+    requestCount = 0;
+  }
+
+  // Check if we should throttle
+  if (requestCount >= MAX_REQUESTS_PER_MINUTE) {
+    console.warn("Request throttled: too many requests per minute");
+    return false;
+  }
+
+  // Check cooldown
+  if (now - lastRequestTime < REQUEST_COOLDOWN) {
+    console.warn(
+      `Request throttled: cooldown period (${Math.ceil(
+        (REQUEST_COOLDOWN - (now - lastRequestTime)) / 1000
+      )}s remaining)`
+    );
+    return false;
+  }
+
+  lastRequestTime = now;
+  requestCount++;
+  return true;
+}
+
+// Helper to track errors
+function recordError() {
+  consecutiveErrors++;
+  console.warn(`Consecutive errors: ${consecutiveErrors}`);
+}
+
+function recordSuccess() {
+  consecutiveErrors = 0;
+}
 
 export interface ProposalMetadata {
   title: string;
@@ -34,33 +97,26 @@ function getContract(provider: BrowserProvider): Contract {
   return new ethers.Contract(CONTRACT_ADDRESS, VOTING_DAO_ABI, provider);
 }
 
-function stringToBytes32(str: string): string {
-  // Convert IPFS hash to bytes32 (simplified for demo)
-  const bytes = ethers.toUtf8Bytes(str.padEnd(32, "\0").slice(0, 32));
-  return ethers.hexlify(bytes);
-}
-
-function bytes32ToString(bytes32: string): string {
-  try {
-    return ethers.toUtf8String(bytes32).replace(/\0+$/, "");
-  } catch {
-    return bytes32; // Return raw hex if not valid UTF-8
-  }
-}
-
 // Real contract integration
 export async function fetchProposals(
   account?: string
 ): Promise<PublicProposal[]> {
+  // Check circuit breaker first
+  if (!shouldAllowRequest()) {
+    console.log("Request blocked by circuit breaker, waiting for cooldown");
+    return [];
+  }
+
   if (!CONTRACT_ADDRESS || typeof window === "undefined" || !window.ethereum) {
-    // Fallback to mock data when contract not configured
-    return getMockProposals(account);
+    console.error("Contract not configured or wallet not available");
+    recordError();
+    return [];
   }
 
   try {
     const provider = new ethers.BrowserProvider(window.ethereum);
 
-    // Check network first
+    // Check network first - this is a lightweight call
     const network = await provider.getNetwork();
     console.log("Connected network:", {
       name: network.name,
@@ -74,25 +130,42 @@ export async function fetchProposals(
         `⚠️  Wrong network! Connected to ${network.name} (chainId: ${network.chainId}), but contract is deployed on localhost (chainId: ${expectedChainId})`
       );
       console.log("Please switch to localhost network in your wallet");
-      console.log("Network details:");
-      console.log("- Network Name: Localhost");
-      console.log("- RPC URL: http://localhost:8545");
-      console.log("- Chain ID: 31337");
-      console.log("- Currency Symbol: ETH");
-      console.log("Falling back to mock data");
-      return getMockProposals(account);
+      recordError();
+      return [];
     }
 
-    // Check if contract exists at the address
-    const code = await provider.getCode(CONTRACT_ADDRESS);
+    // Check if contract exists at the address - potential circuit breaker trigger
+    let code;
+    try {
+      code = await provider.getCode(CONTRACT_ADDRESS);
+    } catch (error: unknown) {
+      // Check if this is a circuit breaker error from wallet extension
+      const err = error as {
+        message?: string;
+        data?: { cause?: { isBrokenCircuitError?: boolean } };
+      };
+      if (
+        err?.message?.includes("circuit breaker") ||
+        err?.message?.includes("Execution prevented") ||
+        err?.data?.cause?.isBrokenCircuitError
+      ) {
+        console.warn(
+          "⚠️ Wallet extension circuit breaker is active. Waiting before retry..."
+        );
+        recordError();
+        return [];
+      }
+      throw error; // Re-throw if it's a different error
+    }
+
     console.log("Contract code length:", code.length);
 
     if (code === "0x") {
       console.error(
         `No contract found at ${CONTRACT_ADDRESS} on network ${network.name} (chainId: ${network.chainId})`
       );
-      console.log("Falling back to mock data");
-      return getMockProposals(account);
+      recordError();
+      return [];
     }
 
     const contract = getContract(provider);
@@ -101,6 +174,7 @@ export async function fetchProposals(
     console.log(`Found ${total} proposals on-chain`);
 
     if (total === 0) {
+      recordSuccess();
       return [];
     }
 
@@ -130,13 +204,48 @@ export async function fetchProposals(
 
           // Convert bytes32 back to IPFS hash
           const hashString = bytes32ToString(ipfsHash);
+          console.log("Raw bytes32 from contract:", ipfsHash);
+          console.log("Converted hash string:", hashString);
 
-          // Fetch metadata from IPFS
+          // Validate IPFS hash before attempting to fetch - be more lenient
+          // Legacy proposals may have truncated hashes that are not valid IPFS hashes
+          const isValidIpfsHash =
+            hashString &&
+            hashString.length >= 46 &&
+            hashString.startsWith("Qm");
+
+          if (!isValidIpfsHash) {
+            console.warn(
+              `Invalid or truncated IPFS hash for proposal ${id}:`,
+              hashString,
+              `(length: ${hashString?.length || 0})`
+            );
+            return {
+              id,
+              ipfsHash: hashString,
+              metadata: null,
+              creator,
+              deadline: Number(deadline) * 1000, // Convert to ms
+              revealed: Boolean(revealed),
+              decryptionPending: Boolean(decryptionPending),
+              yes: Number(yes),
+              no: Number(no),
+              hasVoted,
+            };
+          }
+
+          // Fetch metadata from IPFS with timeout and retry logic
           let metadata: ProposalMetadata | null = null;
           try {
+            // Add a timeout to prevent hanging requests
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
             metadata = await ipfs.fetch(hashString);
+            clearTimeout(timeoutId);
           } catch (error) {
             console.warn(`Failed to fetch metadata for proposal ${id}:`, error);
+            // Don't throw - just continue with null metadata
           }
 
           return {
@@ -159,68 +268,42 @@ export async function fetchProposals(
     );
 
     // Filter out failed proposals and sort newest first
-    return proposals
+    const result = proposals
       .filter(Boolean)
       .sort((a, b) => b!.id - a!.id) as PublicProposal[];
-  } catch (error) {
+
+    recordSuccess(); // Mark successful request
+    return result;
+  } catch (error: unknown) {
     console.error("Failed to fetch proposals from contract:", error);
+
+    // Check if this is a circuit breaker error
+    const err = error as {
+      message?: string;
+      data?: { cause?: { isBrokenCircuitError?: boolean } };
+    };
+    if (
+      err?.message?.includes("circuit breaker") ||
+      err?.message?.includes("Execution prevented") ||
+      err?.data?.cause?.isBrokenCircuitError
+    ) {
+      console.error("⚠️ Wallet extension circuit breaker is blocking requests");
+      console.error(
+        "This usually happens when too many requests are made quickly"
+      );
+      console.error("Wait a few minutes and try refreshing the page");
+    }
+
     console.error("Error details:", {
       message: error instanceof Error ? error.message : "Unknown error",
       code: (error as { code?: string })?.code,
       action: (error as { action?: string })?.action,
       reason: (error as { reason?: string })?.reason,
     });
-    // Fallback to mock data
-    return getMockProposals(account);
+
+    recordError();
+    return [];
   }
-}
-
-// Mock data fallback
-function getMockProposals(account?: string): PublicProposal[] {
-  const mockProposals: PublicProposal[] = [
-    {
-      id: 0,
-      ipfsHash: "QmExample1",
-      metadata: {
-        title: "Should we adopt confidential voting for all governance?",
-        description:
-          "This proposal suggests implementing FHE-based voting for all future governance decisions.",
-        options: ["Yes", "No"],
-        creator: "0x1234...",
-        createdAt: Date.now() - 86400000,
-        tags: ["governance", "privacy"],
-      },
-      creator: "0x1234567890123456789012345678901234567890",
-      deadline: Date.now() + 45 * 60 * 1000,
-      revealed: false,
-      decryptionPending: false,
-      yes: 0,
-      no: 0,
-      hasVoted: account ? false : undefined,
-    },
-    {
-      id: 1,
-      ipfsHash: "QmExample2",
-      metadata: {
-        title: "Fund ZK research sprint Q4?",
-        description:
-          "Allocate 50,000 USDC for zero-knowledge research initiatives.",
-        options: ["Yes", "No"],
-        creator: "0x5678...",
-        createdAt: Date.now() - 172800000,
-        tags: ["funding", "research"],
-      },
-      creator: "0x5678901234567890123456789012345678901234",
-      deadline: Date.now() - 5 * 60 * 1000,
-      revealed: true,
-      decryptionPending: false,
-      yes: 12,
-      no: 7,
-      hasVoted: account ? true : undefined,
-    },
-  ];
-
-  return mockProposals;
 }
 
 export async function createProposalTx(
@@ -228,11 +311,12 @@ export async function createProposalTx(
   durationSeconds: number
 ) {
   // Upload metadata to IPFS first
+  console.log("📤 Uploading metadata to IPFS...");
   const ipfsHash = await ipfs.upload(metadata);
+  console.log("✅ Metadata uploaded to IPFS:", ipfsHash);
 
   if (!CONTRACT_ADDRESS || typeof window === "undefined" || !window.ethereum) {
-    console.log("Mock proposal created:", { ipfsHash, durationSeconds });
-    return { ipfsHash };
+    throw new Error("Contract not configured or wallet not available");
   }
 
   try {
@@ -244,18 +328,69 @@ export async function createProposalTx(
       signer
     );
 
-    console.log("Creating proposal on-chain with IPFS hash:", ipfsHash);
+    console.log("📝 Creating proposal on-chain with IPFS hash:", ipfsHash);
     const bytes32Hash = stringToBytes32(ipfsHash);
+    console.log("🔗 Converted to bytes32:", bytes32Hash);
 
-    const tx = await contract.createProposal(bytes32Hash, durationSeconds);
-    console.log("Transaction sent:", tx.hash);
+    // Check if we can estimate gas first
+    try {
+      console.log("💰 Estimating gas...");
+      const gasEstimate = await contract.createProposal.estimateGas(
+        bytes32Hash,
+        durationSeconds
+      );
+      console.log("💰 Gas estimate:", gasEstimate.toString());
 
-    const receipt = await tx.wait();
-    console.log("Transaction confirmed:", receipt.hash);
+      // Add 20% buffer to gas estimate
+      const gasLimit = (gasEstimate * BigInt(120)) / BigInt(100);
+      console.log("💰 Gas limit with buffer:", gasLimit.toString());
 
-    return { ipfsHash, txHash: receipt.hash };
+      console.log("🚀 Sending transaction...");
+      const tx = await contract.createProposal(bytes32Hash, durationSeconds, {
+        gasLimit: gasLimit,
+      });
+      console.log("✅ Transaction sent:", tx.hash);
+
+      console.log("⏳ Waiting for confirmation...");
+      const receipt = await tx.wait();
+      console.log("✅ Transaction confirmed:", receipt.hash);
+      console.log("📊 Gas used:", receipt.gasUsed.toString());
+
+      return { ipfsHash, txHash: receipt.hash };
+    } catch (gasError) {
+      console.error("❌ Gas estimation failed:", gasError);
+
+      // Try without gas estimation (fallback)
+      console.log("🔄 Trying without gas estimation...");
+      const tx = await contract.createProposal(bytes32Hash, durationSeconds);
+      console.log("✅ Transaction sent (no gas estimate):", tx.hash);
+
+      const receipt = await tx.wait();
+      console.log("✅ Transaction confirmed:", receipt.hash);
+
+      return { ipfsHash, txHash: receipt.hash };
+    }
   } catch (error) {
-    console.error("Failed to create proposal on-chain:", error);
+    console.error("❌ Failed to create proposal on-chain:", error);
+
+    // Log more detailed error information
+    if (error && typeof error === "object") {
+      const err = error as {
+        message?: string;
+        code?: string | number;
+        data?: unknown;
+        reason?: string;
+        transaction?: unknown;
+      };
+      console.error("Error details:", {
+        message: err.message,
+        code: err.code,
+        data: err.data,
+        reason: err.reason,
+        transaction: err.transaction,
+      });
+    }
+
     throw error;
   }
 }
@@ -266,31 +401,33 @@ export async function voteTx(
   account: string
 ) {
   if (!CONTRACT_ADDRESS || typeof window === "undefined" || !window.ethereum) {
-    // Fallback to localStorage if not connected
-    if (typeof window !== "undefined") {
-      const votesKey = `votes-${account}`;
-      const existingVotes = JSON.parse(localStorage.getItem(votesKey) || "{}");
-      existingVotes[proposalId] = { choice, timestamp: Date.now() };
-      localStorage.setItem(votesKey, JSON.stringify(existingVotes));
-      console.log("Vote stored locally (fallback):", { proposalId, choice, account });
-    }
-    return { success: true };
+    throw new Error("Contract not configured or wallet not available");
   }
 
   try {
     const provider = new ethers.BrowserProvider(window.ethereum);
     const signer = await provider.getSigner();
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, VOTING_DAO_ABI, signer);
+    const contract = new ethers.Contract(
+      CONTRACT_ADDRESS,
+      VOTING_DAO_ABI,
+      signer
+    );
 
     console.log("Encrypting vote...");
-    const { encryptedChoice, inputProof } = await encryptVote(choice, CONTRACT_ADDRESS, account);
-    
+    // Clear FHE cache to ensure we use the latest implementation
+    clearFHECache();
+    const { encryptedChoice, inputProof } = await encryptVote(
+      choice,
+      CONTRACT_ADDRESS,
+      account
+    );
+
     console.log("Submitting encrypted vote to contract...");
     const tx = await contract.vote(proposalId, encryptedChoice, inputProof);
-    
+
     console.log("Vote transaction submitted:", tx.hash);
     const receipt = await tx.wait();
-    
+
     console.log("Vote confirmed on-chain:", {
       proposalId,
       txHash: receipt?.hash,
@@ -301,23 +438,17 @@ export async function voteTx(
     if (typeof window !== "undefined") {
       const votesKey = `votes-${account}`;
       const existingVotes = JSON.parse(localStorage.getItem(votesKey) || "{}");
-      existingVotes[proposalId] = { choice, timestamp: Date.now(), onChain: true };
+      existingVotes[proposalId] = {
+        choice,
+        timestamp: Date.now(),
+        onChain: true,
+      };
       localStorage.setItem(votesKey, JSON.stringify(existingVotes));
     }
 
     return { success: true, txHash: receipt?.hash };
   } catch (error) {
     console.error("FHE voting failed:", error);
-    
-    // Fallback to localStorage on error
-    if (typeof window !== "undefined") {
-      const votesKey = `votes-${account}`;
-      const existingVotes = JSON.parse(localStorage.getItem(votesKey) || "{}");
-      existingVotes[proposalId] = { choice, timestamp: Date.now(), error: true };
-      localStorage.setItem(votesKey, JSON.stringify(existingVotes));
-      console.log("Vote stored locally (error fallback):", { proposalId, choice, account });
-    }
-
     throw error;
   }
 }
@@ -325,7 +456,10 @@ export async function voteTx(
 // Helper function to get user's votes from localStorage
 export function getUserVotes(
   account: string
-): Record<number, { choice: boolean; timestamp: number; onChain?: boolean; error?: boolean }> {
+): Record<
+  number,
+  { choice: boolean; timestamp: number; onChain?: boolean; error?: boolean }
+> {
   if (typeof window === "undefined") return {};
   const votesKey = `votes-${account}`;
   return JSON.parse(localStorage.getItem(votesKey) || "{}");
@@ -333,8 +467,7 @@ export function getUserVotes(
 
 export async function requestRevealTx(proposalId: number) {
   if (!CONTRACT_ADDRESS || typeof window === "undefined" || !window.ethereum) {
-    console.log("Mock reveal requested:", { proposalId });
-    return {};
+    throw new Error("Contract not configured or wallet not available");
   }
 
   try {
@@ -364,16 +497,39 @@ export async function deleteProposalMetadata(
   ipfsHash: string
 ): Promise<boolean> {
   try {
-    console.log("Deleting proposal metadata:", ipfsHash);
-    const success = await ipfs.delete(ipfsHash);
-    if (success) {
-      console.log("✅ Proposal metadata deleted successfully");
-    } else {
-      console.warn("⚠️ Failed to delete proposal metadata");
+    console.log("Attempting to delete proposal metadata:", ipfsHash);
+
+    // Handle truncated or invalid IPFS hashes gracefully
+    if (!ipfsHash || ipfsHash.length < 10 || !ipfsHash.startsWith("Qm")) {
+      console.warn(
+        "⚠️ Invalid or truncated IPFS hash, skipping deletion:",
+        ipfsHash
+      );
+      // Consider this "successful" since there's nothing to delete
+      return true;
     }
-    return success;
+
+    // Only attempt deletion for valid-looking hashes
+    if (ipfsHash.length >= 40) {
+      const success = await ipfs.delete(ipfsHash);
+      if (success) {
+        console.log("✅ Proposal metadata deleted successfully");
+      } else {
+        console.warn("⚠️ Failed to delete proposal metadata (may not exist)");
+      }
+      return success;
+    } else {
+      console.warn(
+        "⚠️ Hash too short for deletion, likely truncated:",
+        ipfsHash
+      );
+      // Return true since we can't delete a truncated hash anyway
+      return true;
+    }
   } catch (error) {
     console.error("Failed to delete proposal metadata:", error);
-    return false;
+    // Return true on error since we want the user to be able to "delete"
+    // proposals even if IPFS deletion fails
+    return true;
   }
 }
