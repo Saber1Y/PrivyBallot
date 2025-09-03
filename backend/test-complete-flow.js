@@ -122,14 +122,17 @@ async function main() {
     // Step 2: Vote on the proposal
     console.log("\n🗳️ Step 2: Submitting votes...");
 
-    // Generate proper mock encrypted data (32 bytes each)
+    // Generate proper mock encrypted data with vote choice encoding
     const encryptedChoiceYes = "0x" + "a".repeat(64); // 32 bytes - voting YES
     const encryptedChoiceNo = "0x" + "b".repeat(64); // 32 bytes - voting NO
-    const inputProof = "0x" + "c".repeat(128); // 64 bytes of proof data
+
+    // InputProof with vote choice markers (like the frontend sends)
+    const inputProofYes = "0xaaaa" + "c".repeat(124); // YES vote marker + random data
+    const inputProofNo = "0xbbbb" + "c".repeat(124); // NO vote marker + random data
 
     // Cast a YES vote
     console.log("Voting YES...");
-    const voteYesTx = await contract.vote(proposalId, encryptedChoiceYes, inputProof);
+    const voteYesTx = await contract.vote(proposalId, encryptedChoiceYes, inputProofYes);
     await voteYesTx.wait();
     console.log("✅ YES vote submitted!");
 
@@ -139,7 +142,7 @@ async function main() {
     const contract2 = new ethers.Contract(CONTRACT_ADDRESS, VOTING_DAO_ABI, wallet2);
 
     console.log("Voting NO...");
-    const voteNoTx = await contract2.vote(proposalId, encryptedChoiceNo, inputProof);
+    const voteNoTx = await contract2.vote(proposalId, encryptedChoiceNo, inputProofNo);
     await voteNoTx.wait();
     console.log("✅ NO vote submitted!");
 

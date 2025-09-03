@@ -51,13 +51,31 @@ export async function initializeFHE(
       };
 
       const mockInstance = {
-        createEncryptedInput: (): EncryptedInput => ({
-          addBool: () => {},
-          encrypt: () => ({
-            handles: ["0x" + generateHex(64)], // bytes32 = 64 hex chars
-            inputProof: "0x" + generateHex(128), // arbitrary length for proof
-          }),
-        }),
+        createEncryptedInput: (): EncryptedInput => {
+          let voteChoice: boolean | null = null;
+
+          return {
+            addBool: (value: boolean) => {
+              voteChoice = value; // Store the vote choice
+            },
+            encrypt: () => {
+              // Encode the vote choice in the inputProof for localhost testing
+              let inputProof: string;
+              if (voteChoice === true) {
+                // YES vote: start with 0xaaaa pattern
+                inputProof = "0xaaaa" + generateHex(124); // 2 bytes marker + 62 bytes random
+              } else {
+                // NO vote: start with 0xbbbb pattern
+                inputProof = "0xbbbb" + generateHex(124); // 2 bytes marker + 62 bytes random
+              }
+
+              return {
+                handles: ["0x" + generateHex(64)], // bytes32 = 64 hex chars
+                inputProof: inputProof,
+              };
+            },
+          };
+        },
       };
 
       const fheInstance: FHEInstance = {
@@ -84,13 +102,30 @@ export async function initializeFHE(
     };
 
     const placeholderInstance = {
-      createEncryptedInput: (): EncryptedInput => ({
-        addBool: () => {},
-        encrypt: () => ({
-          handles: ["0x" + generateHex(64)], // bytes32 = 64 hex chars
-          inputProof: "0x" + generateHex(128), // arbitrary length for proof
-        }),
-      }),
+      createEncryptedInput: (): EncryptedInput => {
+        let voteChoice: boolean | null = null;
+
+        return {
+          addBool: (value: boolean) => {
+            voteChoice = value; // Store the vote choice
+          },
+          encrypt: () => {
+            // For real networks, this would use actual FHE
+            // For now, just use the same pattern as localhost for consistency
+            let inputProof: string;
+            if (voteChoice === true) {
+              inputProof = "0xaaaa" + generateHex(124); // YES vote marker
+            } else {
+              inputProof = "0xbbbb" + generateHex(124); // NO vote marker
+            }
+
+            return {
+              handles: ["0x" + generateHex(64)], // bytes32 = 64 hex chars
+              inputProof: inputProof,
+            };
+          },
+        };
+      },
     };
 
     const fheInstance: FHEInstance = {

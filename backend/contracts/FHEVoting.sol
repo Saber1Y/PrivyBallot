@@ -29,6 +29,10 @@ contract ConfidentialVotingDAO is SepoliaConfig {
     uint256 private nextMockRequestId = 1;
     mapping(uint256 => uint256) private mockRequestToProposal;
 
+    // For localhost development - track actual vote counts in plain text
+    mapping(uint256 => uint128) private localhostYesCount;
+    mapping(uint256 => uint128) private localhostNoCount;
+
     // --- events
     event ProposalCreated(uint256 indexed id, address indexed creator, bytes32 ipfsHash, uint64 deadline);
     event VoteCast(uint256 indexed id, address indexed voter);
@@ -79,14 +83,27 @@ contract ConfidentialVotingDAO is SepoliaConfig {
         hasVoted[id][msg.sender] = true;
 
         if (block.chainid == 31337) {
-            // For localhost development, use mock voting logic
-            // We'll store the vote counts in a simple way and handle them in reveal
-            // This is just for testing - we'll just increment based on sender address
+            // For localhost development, decode the choice from the inputProof parameter
+            // The frontend will send different patterns in inputProof for YES vs NO
+            // YES votes: inputProof starts with 0xaaaa...
+            // NO votes:  inputProof starts with 0xbbbb...
 
-            // Simple mock: even addresses vote YES, odd addresses vote NO
-            bool mockChoice = (uint160(msg.sender) % 2) == 0;
+            bool userChoice = true; // Default to YES
+            if (inputProof.length >= 2) {
+                // Check first two bytes of inputProof to determine vote intention
+                uint16 marker = uint16(bytes2(inputProof[0:2]));
+                userChoice = (marker == 0xaaaa); // 0xaaaa = YES, anything else = NO
+            }
 
-            if (mockChoice) {
+            // Track the actual user choice in plain text for localhost testing
+            if (userChoice) {
+                localhostYesCount[id]++;
+            } else {
+                localhostNoCount[id]++;
+            }
+
+            // Also update the encrypted counters for compatibility
+            if (userChoice) {
                 p.yesCt = FHE.add(p.yesCt, FHE.asEuint128(1));
             } else {
                 p.noCt = FHE.add(p.noCt, FHE.asEuint128(1));
@@ -129,16 +146,15 @@ contract ConfidentialVotingDAO is SepoliaConfig {
             mockRequestToProposal[mockRequestId] = id;
             p.decryptionPending = true; // Set this before calling the internal function
 
-            // Simulate decryption with mock values based on proposal ID
-            // This is for testing only - in real FHE, these would be actual encrypted tallies
-            uint128 mockYes = uint128((id + 1) * 3); // Some predictable mock value
-            uint128 mockNo = uint128((id + 1) * 2); // Some predictable mock value
+            // For localhost, use the actual tracked vote counts instead of mock data
+            uint128 realYes = localhostYesCount[id];
+            uint128 realNo = localhostNoCount[id];
 
             emit RevealRequested(id, mockRequestId);
 
-            // Immediately call fulfillReveal with mock data
+            // Immediately call fulfillReveal with real localhost vote counts
             bytes[] memory emptySignatures = new bytes[](0);
-            _fulfillRevealInternal(mockRequestId, mockYes, mockNo, emptySignatures);
+            _fulfillRevealInternal(mockRequestId, realYes, realNo, emptySignatures);
 
             return;
         }

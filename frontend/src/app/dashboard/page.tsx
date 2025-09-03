@@ -24,6 +24,7 @@ import {
   voteTx,
   requestRevealTx,
   deleteProposalMetadata,
+  checkProposalRevealStatus,
 } from "@/lib/dao";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 
@@ -121,15 +122,18 @@ export default function Dashboard() {
   };
 
   // Load proposals on component mount and when auth changes
-  const loadProposals = useCallback(async () => {
-    try {
-      const account = user?.wallet?.address;
-      const data = await fetchProposals(account);
-      setProposals(data);
-    } catch (error) {
-      console.error("Failed to load proposals:", error);
-    }
-  }, [user?.wallet?.address]);
+  const loadProposals = useCallback(
+    async (isRevealCheck = false) => {
+      try {
+        const account = user?.wallet?.address;
+        const data = await fetchProposals(account, isRevealCheck);
+        setProposals(data);
+      } catch (error) {
+        console.error("Failed to load proposals:", error);
+      }
+    },
+    [user?.wallet?.address]
+  );
 
   // Only load proposals when user is authenticated and ready, with a delay
   useEffect(() => {
@@ -231,19 +235,31 @@ export default function Dashboard() {
       // Listen for reveal completion by polling the contract
       // In a real app, you'd listen to events or use websockets
       const pollForReveal = async () => {
-        for (let i = 0; i < 30; i++) {
-          // Poll for up to 30 seconds
+        for (let i = 0; i < 15; i++) {
+          // Poll for up to 15 seconds with shorter intervals
           await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
 
           try {
-            // Reload proposals to check if reveal is complete
-            const account = user?.wallet?.address;
-            const updatedProposals = await fetchProposals(account);
-            const proposal = updatedProposals.find((p) => p.id === id);
+            // Use the lightweight reveal check instead of full proposal fetch
+            const revealStatus = await checkProposalRevealStatus(id);
 
-            if (proposal && proposal.revealed) {
-              console.log("Reveal completed for proposal:", id);
-              setProposals(updatedProposals);
+            if (revealStatus && revealStatus.revealed) {
+              console.log("Reveal completed for proposal:", id, revealStatus);
+
+              // Update the specific proposal in state
+              setProposals((prevProposals) =>
+                prevProposals.map((p) =>
+                  p.id === id
+                    ? {
+                        ...p,
+                        revealed: true,
+                        decryptionPending: false,
+                        yes: revealStatus.yes,
+                        no: revealStatus.no,
+                      }
+                    : p
+                )
+              );
               return;
             }
           } catch (error) {
@@ -251,8 +267,10 @@ export default function Dashboard() {
           }
         }
 
-        // If we get here, reveal didn't complete in time
-        console.warn("Reveal polling timed out");
+        // If we get here, reveal didn't complete in expected time
+        console.warn(
+          "Reveal polling timed out - results may still be processing"
+        );
         setProposals((prevProposals) =>
           prevProposals.map((p) =>
             p.id === id ? { ...p, decryptionPending: false } : p
@@ -295,21 +313,25 @@ export default function Dashboard() {
 
     try {
       console.log("Deleting proposal metadata:", proposal.ipfsHash);
+
+      // Optimistically remove the proposal from UI immediately
+      setProposals((prevProposals) =>
+        prevProposals.filter((p) => p.id !== proposal.id)
+      );
+
       const success = await deleteProposalMetadata(proposal.ipfsHash);
 
       if (success) {
         console.log("✅ Proposal metadata deletion completed");
-        // Reload proposals to reflect the change
-        await loadProposals();
+        // Proposal already removed from UI, no need to reload
       } else {
         console.warn("⚠️ Proposal metadata deletion may have failed");
-        // Still reload proposals in case the proposal was marked as deleted
+        // Since deletion might have failed, reload to get accurate state
         await loadProposals();
       }
     } catch (error) {
       console.error("Error deleting proposal:", error);
-      // Don't show an error to user since the issue is likely with IPFS hash format
-      // Just reload to see current state
+      // On error, reload proposals to restore accurate state
       await loadProposals();
     }
   };
@@ -409,7 +431,7 @@ export default function Dashboard() {
             <h2 className="text-lg font-semibold">Proposals</h2>
             <Button
               variant="outline"
-              onClick={loadProposals}
+              onClick={() => loadProposals()}
               disabled={loading}
               className="flex items-center gap-2"
             >
@@ -511,12 +533,49 @@ export default function Dashboard() {
                         </Button>
                       </div>
                     ) : p.revealed ? (
-                      <div className="p-3 bg-blue-50 rounded">
-                        <div className="text-sm font-medium mb-1">Results:</div>
-                        <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div>Yes: {p.yes}</div>
-                          <div>No: {p.no}</div>
+                      <div className="space-y-2">
+                        <div className="p-3 bg-blue-50 rounded">
+                          <div className="text-sm font-medium mb-1">
+                            Results:
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>Yes: {p.yes}</div>
+                            <div>No: {p.no}</div>
+                          </div>
                         </div>
+                        {p.yes === 0 && p.no === 0 && (
+                          <Button
+                            onClick={async () => {
+                              console.log(
+                                "Checking latest results for proposal:",
+                                p.id
+                              );
+                              const status = await checkProposalRevealStatus(
+                                p.id
+                              );
+                              if (status) {
+                                setProposals((prevProposals) =>
+                                  prevProposals.map((proposal) =>
+                                    proposal.id === p.id
+                                      ? {
+                                          ...proposal,
+                                          yes: status.yes,
+                                          no: status.no,
+                                          revealed: status.revealed,
+                                        }
+                                      : proposal
+                                  )
+                                );
+                              }
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="flex items-center gap-2"
+                          >
+                            <Eye className="h-4 w-4" />
+                            Refresh Results
+                          </Button>
+                        )}
                       </div>
                     ) : p.decryptionPending ? (
                       <div className="flex items-center gap-2 text-blue-600">

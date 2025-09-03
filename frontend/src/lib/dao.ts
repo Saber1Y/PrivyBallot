@@ -8,13 +8,32 @@ import { encryptVote, clearFHECache } from "./fhe-simple";
 let lastRequestTime = 0;
 let requestCount = 0;
 let consecutiveErrors = 0;
-const REQUEST_COOLDOWN = 5000; // 5 seconds between requests (increased)
-const MAX_REQUESTS_PER_MINUTE = 5; // Reduced max requests
+const REQUEST_COOLDOWN = 3000; // 3 seconds between requests (reduced for reveal polling)
+const MAX_REQUESTS_PER_MINUTE = 10; // Increased for reveal polling
 const MAX_CONSECUTIVE_ERRORS = 3;
-const ERROR_BACKOFF_TIME = 30000; // 30 seconds backoff after consecutive errors
+const ERROR_BACKOFF_TIME = 15000; // 15 seconds backoff (reduced)
 
-function shouldAllowRequest(): boolean {
+function shouldAllowRequest(isRevealCheck = false): boolean {
   const now = Date.now();
+
+  // For reveal checks, be more lenient
+  if (isRevealCheck) {
+    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+      if (now - lastRequestTime < ERROR_BACKOFF_TIME / 2) {
+        // Half backoff for reveals
+        return false;
+      } else {
+        consecutiveErrors = 0;
+      }
+    }
+
+    // For reveals, allow more frequent requests
+    if (now - lastRequestTime < REQUEST_COOLDOWN / 2) {
+      return false;
+    }
+
+    return true;
+  }
 
   // If we've had consecutive errors, implement longer backoff
   if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
@@ -99,10 +118,11 @@ function getContract(provider: BrowserProvider): Contract {
 
 // Real contract integration
 export async function fetchProposals(
-  account?: string
+  account?: string,
+  isRevealCheck = false
 ): Promise<PublicProposal[]> {
   // Check circuit breaker first
-  if (!shouldAllowRequest()) {
+  if (!shouldAllowRequest(isRevealCheck)) {
     console.log("Request blocked by circuit breaker, waiting for cooldown");
     return [];
   }
@@ -201,6 +221,17 @@ export async function fetchProposals(
           }
 
           const hasVoted = voted || localVoted;
+
+          // Debug logging for vote status
+          console.log(`Proposal ${id} vote status:`, {
+            contractVoted: voted,
+            localVoted: localVoted,
+            finalHasVoted: hasVoted,
+            account: account,
+            creator: creator,
+            isCreator:
+              account && creator.toLowerCase() === account.toLowerCase(),
+          });
 
           // Convert bytes32 back to IPFS hash
           const hashString = bytes32ToString(ipfsHash);
@@ -531,5 +562,38 @@ export async function deleteProposalMetadata(
     // Return true on error since we want the user to be able to "delete"
     // proposals even if IPFS deletion fails
     return true;
+  }
+}
+
+// Lightweight function to check reveal status for a specific proposal
+export async function checkProposalRevealStatus(proposalId: number): Promise<{
+  revealed: boolean;
+  yes: number;
+  no: number;
+  decryptionPending: boolean;
+} | null> {
+  if (!CONTRACT_ADDRESS || typeof window === "undefined" || !window.ethereum) {
+    return null;
+  }
+
+  try {
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const contract = getContract(provider);
+
+    const [, , , revealed, decryptionPending, yes, no] =
+      await contract.getProposalPublic(proposalId);
+
+    return {
+      revealed: Boolean(revealed),
+      yes: Number(yes),
+      no: Number(no),
+      decryptionPending: Boolean(decryptionPending),
+    };
+  } catch (error) {
+    console.error(
+      `Failed to check reveal status for proposal ${proposalId}:`,
+      error
+    );
+    return null;
   }
 }

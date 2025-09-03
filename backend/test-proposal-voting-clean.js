@@ -6,26 +6,7 @@ const { ethers } = require("ethers");
 // Import the actual ABI from compiled artifacts
 const CONTRACT_ADDRESS = "0xF177Bfc7e806515eB4a966978e1c7ed498E16753";
 const { abi: VOTING_DAO_ABI } = require("./artifacts/contracts/FHEVoting.sol/ConfidentialVotingDAO.json");
-    name: "getProposalCount",
-    inputs: [],
-    outputs: [{ name: "", type: "uint256" }],
-    stateMutability: "view",
-  },
-  {
-    type: "function",
-    name: "proposals",
-    inputs: [{ name: "", type: "uint256" }],
-    outputs: [
-      { name: "metadataHash", type: "bytes32" },
-      { name: "deadline", type: "uint256" },
-      { name: "voteCount", type: "uint256" },
-      { name: "revealed", type: "bool" },
-    ],
-    stateMutability: "view",
-  },
-];
 
-const CONTRACT_ADDRESS = "0xF177Bfc7e806515eB4a966978e1c7ed498E16753";
 const RPC_URL = "http://127.0.0.1:8545";
 
 async function main() {
@@ -75,27 +56,37 @@ async function main() {
 
     // Generate proper mock encrypted data (32 bytes each)
     const encryptedChoice = "0x" + "a".repeat(64); // 32 bytes of 'a'
-    const inputProof = "0x" + "b".repeat(128); // 64 bytes of 'b'
-
-    console.log("Encrypted choice (bytes32):", encryptedChoice);
-    console.log("Input proof length:", inputProof.length - 2, "hex chars");
+    const inputProof = "0x" + "aaaa" + "b".repeat(60); // YES vote pattern
 
     const voteTx = await contract.vote(proposalId, encryptedChoice, inputProof);
     console.log("Vote transaction sent:", voteTx.hash);
     await voteTx.wait();
     console.log("✅ Vote submitted successfully!");
 
-    // Check updated proposal
-    const updatedProposal = await contract.proposals(proposalId);
-    console.log("📊 Updated proposal after vote:");
-    console.log("- Yes count (encrypted):", updatedProposal.yesCt.toString());
-    console.log("- No count (encrypted):", updatedProposal.noCt.toString());
+    // Check if user has voted
+    const hasVoted = await contract.hasVoted(proposalId, wallet.address);
+    console.log("Has voted:", hasVoted);
+
+    console.log("\n🎉 All tests completed successfully!");
   } catch (error) {
-    console.error("❌ Error:", error.message);
-    if (error.data) {
-      console.error("Error data:", error.data);
-    }
+    console.error("❌ Error during testing:", error);
+    console.error("Error details:");
+    console.error({
+      message: error.message,
+      code: error.code,
+      data: error.data,
+      reason: error.reason,
+      transaction: error.transaction,
+    });
   }
 }
 
-main().catch(console.error);
+main()
+  .then(() => {
+    console.log("✅ Test completed");
+    process.exit(0);
+  })
+  .catch((error) => {
+    console.error("❌ Test failed:", error);
+    process.exit(1);
+  });

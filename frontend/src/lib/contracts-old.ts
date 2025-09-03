@@ -1,9 +1,348 @@
 // Import the ABI from the compiled contract artifacts
 export const VOTING_DAO_ABI = [
   {
-    inputs: [
+    "inputs": [],
+    "name": "HandlesAlreadySavedForRequestID",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "InvalidKMSSignatures",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "NoHandleFoundForRequestID",
+    "type": "error"
+  },
+  {
+    "inputs": [],
+    "name": "UnsupportedHandleType",
+    "type": "error"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
       {
-        internalT  },
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "requestID",
+        "type": "uint256"
+      }
+    ],
+    "name": "DecryptionFulfilled",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "bytes32",
+        "name": "ipfsHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint64",
+        "name": "deadline",
+        "type": "uint64"
+      }
+    ],
+    "name": "ProposalCreated",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "requestId",
+        "type": "uint256"
+      }
+    ],
+    "name": "RevealRequested",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "yes",
+        "type": "uint128"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint128",
+        "name": "no",
+        "type": "uint128"
+      }
+    ],
+    "name": "Revealed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      },
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "voter",
+        "type": "address"
+      }
+    ],
+    "name": "VoteCast",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "ipfsHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint64",
+        "name": "durationSeconds",
+        "type": "uint64"
+      }
+    ],
+    "name": "createProposal",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "requestId",
+        "type": "uint256"
+      },
+      {
+        "internalType": "uint128",
+        "name": "yesPlain",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "noPlain",
+        "type": "uint128"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "signatures",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "fulfillReveal",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "name": "getProposalPublic",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "ipfsHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "internalType": "uint64",
+        "name": "deadline",
+        "type": "uint64"
+      },
+      {
+        "internalType": "bool",
+        "name": "revealed",
+        "type": "bool"
+      },
+      {
+        "internalType": "bool",
+        "name": "decryptionPending",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint128",
+        "name": "yes",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "no",
+        "type": "uint128"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      },
+      {
+        "internalType": "address",
+        "name": "",
+        "type": "address"
+      }
+    ],
+    "name": "hasVoted",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "nextProposalId",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "name": "proposalExists",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "name": "proposals",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "ipfsHash",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "address",
+        "name": "creator",
+        "type": "address"
+      },
+      {
+        "internalType": "uint64",
+        "name": "deadline",
+        "type": "uint64"
+      },
+      {
+        "internalType": "euint128",
+        "name": "yesCt",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "euint128",
+        "name": "noCt",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bool",
+        "name": "revealed",
+        "type": "bool"
+      },
+      {
+        "internalType": "uint128",
+        "name": "yes",
+        "type": "uint128"
+      },
+      {
+        "internalType": "uint128",
+        "name": "no",
+        "type": "uint128"
+      },
+      {
+        "internalType": "bool",
+        "name": "decryptionPending",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
   {
     "inputs": [
       {
@@ -18,101 +357,29 @@ export const VOTING_DAO_ABI = [
     "type": "function"
   },
   {
-    "anonymous": false,: "bytes32",
-        name: "ipfsHash",
-        type: "bytes32",
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
       },
       {
-        internalType: "uint64",
-        name: "durationSeconds",
-        type: "uint64",
+        "internalType": "externalEbool",
+        "name": "encChoice",
+        "type": "bytes32"
       },
+      {
+        "internalType": "bytes",
+        "name": "inputProof",
+        "type": "bytes"
+      }
     ],
-    name: "createProposal",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "id",
-        type: "uint256",
-      },
-    ],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "id",
-        type: "uint256",
-      },
-    ],
-    name: "getProposalPublic",
-    outputs: [
-      {
-        internalType: "bytes32",
-        name: "ipfsHash",
-        type: "bytes32",
-      },
-      {
-        internalType: "address",
-        name: "creator",
-        type: "address",
-      },
-      {
-        internalType: "uint64",
-        name: "deadline",
-        type: "uint64",
-      },
-      {
-        internalType: "bool",
-        name: "revealed",
-        type: "bool",
-      },
-      {
-        internalType: "bool",
-        name: "decryptionPending",
-        type: "bool",
-      },
-      {
-        internalType: "uint128",
-        name: "yes",
-        type: "uint128",
-      },
-      {
-        internalType: "uint128",
-        name: "no",
-        type: "uint128",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-      {
-        internalType: "address",
-        name: "",
-        type: "address",
-      },
-    ],
-    name: "hasVoted",
-    outputs: [
-      {
-        internalType: "bool",
-        name: "",
-        type: "bool",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
+    "name": "vote",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  }
+];
     inputs: [],
     name: "nextProposalId",
     outputs: [
@@ -142,6 +409,42 @@ export const VOTING_DAO_ABI = [
       },
     ],
     stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "id",
+        type: "uint256",
+      },
+    ],
+    name: "requestReveal",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "id",
+        type: "uint256",
+      },
+      {
+        internalType: "externalEbool",
+        name: "encChoice",
+        type: "bytes32",
+      },
+      {
+        internalType: "bytes",
+        name: "inputProof",
+        type: "bytes",
+      },
+    ],
+    name: "vote",
+    outputs: [],
+    stateMutability: "nonpayable",
     type: "function",
   },
   {
