@@ -14,13 +14,18 @@ import {
   CheckCircle,
   Eye,
   Network,
+  Trash2,
 } from "lucide-react";
 import {
   fetchProposals,
   createProposalTx,
   PublicProposal,
   ProposalMetadata,
+  voteTx,
+  requestRevealTx,
+  deleteProposalMetadata,
 } from "@/lib/dao";
+import { CountdownTimer } from "@/components/ui/CountdownTimer";
 
 export default function Dashboard() {
   const { ready, authenticated, login, logout, user } = usePrivy();
@@ -174,43 +179,127 @@ export default function Dashboard() {
     setLoading(false);
   };
 
-  const vote = (id: number, choice: "yes" | "no") => {
-    setProposals(
-      proposals.map((p) =>
-        p.id === id && !p.hasVoted && p.deadline > Date.now()
-          ? {
-              ...p,
-              hasVoted: true,
-              yes: choice === "yes" ? p.yes + 1 : p.yes,
-              no: choice === "no" ? p.no + 1 : p.no,
-            }
-          : p
-      )
-    );
-  };
+  const vote = async (id: number, choice: "yes" | "no") => {
+    if (!user?.wallet?.address) return;
 
-  const requestReveal = (id: number) => {
-    setProposals(
-      proposals.map((p) =>
-        p.id === id ? { ...p, decryptionPending: true } : p
-      )
-    );
-    setTimeout(() => {
+    try {
+      await voteTx(id, choice === "yes", user.wallet.address);
+
+      // Update the UI immediately
       setProposals(
         proposals.map((p) =>
-          p.id === id ? { ...p, decryptionPending: false, revealed: true } : p
+          p.id === id && !p.hasVoted && p.deadline > Date.now()
+            ? {
+                ...p,
+                hasVoted: true,
+                yes: choice === "yes" ? p.yes + 1 : p.yes,
+                no: choice === "no" ? p.no + 1 : p.no,
+              }
+            : p
         )
       );
-    }, 2000);
+
+      // Reload proposals to get fresh data
+      await loadProposals();
+    } catch (error) {
+      console.error("Failed to vote:", error);
+    }
   };
 
-  const formatTimeLeft = (deadline: number) => {
-    const diff = deadline - Date.now();
-    if (diff <= 0) return "Ended";
-    const mins = Math.floor(diff / 60000);
-    return mins < 60
-      ? `${mins}m left`
-      : `${Math.floor(mins / 60)}h ${mins % 60}m left`;
+  const requestReveal = async (id: number) => {
+    try {
+      // Update UI to show pending state
+      setProposals(
+        proposals.map((p) =>
+          p.id === id ? { ...p, decryptionPending: true } : p
+        )
+      );
+
+      console.log("Requesting reveal for proposal:", id);
+      const result = await requestRevealTx(id);
+      console.log("Reveal requested, result:", result);
+
+      // Listen for reveal completion by polling the contract
+      // In a real app, you'd listen to events or use websockets
+      const pollForReveal = async () => {
+        for (let i = 0; i < 30; i++) {
+          // Poll for up to 30 seconds
+          await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second
+
+          try {
+            // Reload proposals to check if reveal is complete
+            const account = user?.wallet?.address;
+            const updatedProposals = await fetchProposals(account);
+            const proposal = updatedProposals.find((p) => p.id === id);
+
+            if (proposal && proposal.revealed) {
+              console.log("Reveal completed for proposal:", id);
+              setProposals(updatedProposals);
+              return;
+            }
+          } catch (error) {
+            console.warn("Error polling for reveal:", error);
+          }
+        }
+
+        // If we get here, reveal didn't complete in time
+        console.warn("Reveal polling timed out");
+        setProposals((prevProposals) =>
+          prevProposals.map((p) =>
+            p.id === id ? { ...p, decryptionPending: false } : p
+          )
+        );
+      };
+
+      // Start polling in background
+      pollForReveal();
+    } catch (error) {
+      console.error("Failed to request reveal:", error);
+      // Reset pending state on error
+      setProposals(
+        proposals.map((p) =>
+          p.id === id ? { ...p, decryptionPending: false } : p
+        )
+      );
+    }
+  };
+
+  const deleteProposal = async (proposal: PublicProposal) => {
+    if (!proposal.metadata || !user?.wallet?.address) return;
+
+    // Check if user is the creator
+    if (proposal.creator.toLowerCase() !== user.wallet.address.toLowerCase()) {
+      console.warn("Only the proposal creator can delete it");
+      return;
+    }
+
+    if (
+      !confirm(
+        "Are you sure you want to delete this proposal? This will remove the metadata from IPFS."
+      )
+    ) {
+      return;
+    }
+
+    try {
+      console.log("Deleting proposal metadata:", proposal.ipfsHash);
+      const success = await deleteProposalMetadata(proposal.ipfsHash);
+
+      if (success) {
+        console.log("✅ Proposal metadata deleted");
+        // Reload proposals to reflect the change
+        await loadProposals();
+      } else {
+        console.error("❌ Failed to delete proposal metadata");
+      }
+    } catch (error) {
+      console.error("Error deleting proposal:", error);
+    }
+  };
+
+  const handleProposalExpire = async () => {
+    // Refresh proposals when any timer expires
+    await loadProposals();
   };
 
   return (
@@ -235,26 +324,15 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-2">
             {authenticated && (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={switchToLocalhost}
-                  className="text-xs"
-                >
-                  <Network className="mr-1 h-3 w-3" />
-                  Localhost
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={switchToLocalhost}
-                  className="text-xs"
-                >
-                  <Network className="mr-1 h-3 w-3" />
-                  Localhost
-                </Button>
-              </>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={switchToLocalhost}
+                className="text-xs"
+              >
+                <Network className="mr-1 h-3 w-3" />
+                Localhost
+              </Button>
             )}
             {ready && (
               <Button onClick={authenticated ? logout : login}>
@@ -316,9 +394,10 @@ export default function Dashboard() {
                   <div className="text-sm text-gray-600">
                     {p.metadata?.description || "Loading description..."}
                   </div>
-                  <div className="text-sm text-gray-500">
-                    {formatTimeLeft(p.deadline)}
-                  </div>
+                  <CountdownTimer
+                    deadline={p.deadline}
+                    onExpire={handleProposalExpire}
+                  />
                   {p.deadline > Date.now() ? (
                     <div className="flex space-x-2">
                       <Button
@@ -359,12 +438,27 @@ export default function Dashboard() {
                       Reveal Results
                     </Button>
                   )}
-                  {p.hasVoted && (
-                    <div className="flex items-center gap-1 text-green-600 text-sm">
-                      <CheckCircle className="h-4 w-4" />
-                      You voted
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between">
+                    {p.hasVoted && (
+                      <div className="flex items-center gap-1 text-green-600 text-sm">
+                        <CheckCircle className="h-4 w-4" />
+                        You voted
+                      </div>
+                    )}
+                    {user?.wallet?.address &&
+                      p.creator.toLowerCase() ===
+                        user.wallet.address.toLowerCase() && (
+                        <Button
+                          onClick={() => deleteProposal(p)}
+                          variant="outline"
+                          size="sm"
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Delete
+                        </Button>
+                      )}
+                  </div>
                 </CardContent>
               </Card>
             ))}

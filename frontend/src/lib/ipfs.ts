@@ -154,6 +154,65 @@ class PinataIPFS {
       return null;
     }
   }
+
+  async delete(hash: string): Promise<boolean> {
+    const pinataApiKey = process.env.NEXT_PUBLIC_PINATA_API_KEY;
+    const pinataSecretKey = process.env.NEXT_PUBLIC_PINATA_SECRET_KEY;
+
+    if (!pinataApiKey || !pinataSecretKey) {
+      console.warn(
+        "⚠️ Pinata API keys not found, trying mock storage deletion"
+      );
+      // Try deleting from localStorage
+      if (typeof window !== "undefined") {
+        const stored = JSON.parse(
+          localStorage.getItem("ipfs-proposals") || "{}"
+        );
+        if (stored[hash]) {
+          delete stored[hash];
+          localStorage.setItem("ipfs-proposals", JSON.stringify(stored));
+          console.log("✅ Deleted from mock storage:", hash);
+          return true;
+        }
+      }
+      return false;
+    }
+
+    try {
+      console.log("🗑️ Deleting proposal metadata from IPFS via Pinata...");
+
+      const response = await fetch(`${this.apiUrl}/pinning/unpin/${hash}`, {
+        method: "DELETE",
+        headers: {
+          pinata_api_key: pinataApiKey,
+          pinata_secret_api_key: pinataSecretKey,
+        },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Pinata delete error: ${response.status} ${errorText}`);
+      }
+
+      console.log("✅ Successfully deleted from IPFS:", hash);
+      return true;
+    } catch (error) {
+      console.error("❌ IPFS delete failed:", error);
+      // Fallback to mock deletion
+      if (typeof window !== "undefined") {
+        const stored = JSON.parse(
+          localStorage.getItem("ipfs-proposals") || "{}"
+        );
+        if (stored[hash]) {
+          delete stored[hash];
+          localStorage.setItem("ipfs-proposals", JSON.stringify(stored));
+          console.log("✅ Deleted from mock storage as fallback:", hash);
+          return true;
+        }
+      }
+      return false;
+    }
+  }
 }
 
 // Export the appropriate implementation - now using real IPFS!

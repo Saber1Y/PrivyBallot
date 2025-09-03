@@ -1,6 +1,8 @@
 // Contract interaction helpers with IPFS metadata support
 import { ethers, BrowserProvider, Contract } from "ethers";
 import { VOTING_DAO_ABI, CONTRACT_ADDRESS } from "./contracts";
+import { ipfs } from "./ipfs";
+import { encryptVote } from "./fhe";
 
 export interface ProposalMetadata {
   title: string;
@@ -23,45 +25,6 @@ export type PublicProposal = {
   no: number;
   hasVoted?: boolean;
 };
-
-// Mock IPFS for development
-class MockIPFS {
-  private store = new Map<string, ProposalMetadata>();
-
-  async upload(metadata: ProposalMetadata): Promise<string> {
-    const hash = `Qm${Math.random().toString(36).substring(2, 15)}`;
-    this.store.set(hash, metadata);
-
-    // Persist to localStorage for demo persistence
-    if (typeof window !== "undefined") {
-      const stored = JSON.parse(localStorage.getItem("ipfs-proposals") || "{}");
-      stored[hash] = metadata;
-      localStorage.setItem("ipfs-proposals", JSON.stringify(stored));
-    }
-
-    return hash;
-  }
-
-  async fetch(hash: string): Promise<ProposalMetadata | null> {
-    // Try memory first
-    if (this.store.has(hash)) {
-      return this.store.get(hash)!;
-    }
-
-    // Try localStorage
-    if (typeof window !== "undefined") {
-      const stored = JSON.parse(localStorage.getItem("ipfs-proposals") || "{}");
-      if (stored[hash]) {
-        this.store.set(hash, stored[hash]);
-        return stored[hash];
-      }
-    }
-
-    return null;
-  }
-}
-
-const mockIPFS = new MockIPFS();
 
 // Contract helper functions
 function getContract(provider: BrowserProvider): Contract {
@@ -156,13 +119,22 @@ export async function fetchProposals(
 
           const voted = account ? await contract.hasVoted(id, account) : false;
 
+          // Also check localStorage for votes (until FHE voting is implemented)
+          let localVoted = false;
+          if (account && typeof window !== "undefined") {
+            const userVotes = getUserVotes(account);
+            localVoted = userVotes[id] !== undefined;
+          }
+
+          const hasVoted = voted || localVoted;
+
           // Convert bytes32 back to IPFS hash
           const hashString = bytes32ToString(ipfsHash);
 
           // Fetch metadata from IPFS
           let metadata: ProposalMetadata | null = null;
           try {
-            metadata = await mockIPFS.fetch(hashString);
+            metadata = await ipfs.fetch(hashString);
           } catch (error) {
             console.warn(`Failed to fetch metadata for proposal ${id}:`, error);
           }
@@ -177,7 +149,7 @@ export async function fetchProposals(
             decryptionPending: Boolean(decryptionPending),
             yes: Number(yes),
             no: Number(no),
-            hasVoted: Boolean(voted),
+            hasVoted: Boolean(hasVoted),
           } as PublicProposal;
         } catch (error) {
           console.error(`Failed to fetch proposal ${id}:`, error);
@@ -256,7 +228,7 @@ export async function createProposalTx(
   durationSeconds: number
 ) {
   // Upload metadata to IPFS first
-  const ipfsHash = await mockIPFS.upload(metadata);
+  const ipfsHash = await ipfs.upload(metadata);
 
   if (!CONTRACT_ADDRESS || typeof window === "undefined" || !window.ethereum) {
     console.log("Mock proposal created:", { ipfsHash, durationSeconds });
@@ -288,10 +260,75 @@ export async function createProposalTx(
   }
 }
 
-export async function voteTx(proposalId: number, choice: boolean) {
-  // TODO: Implement FHE voting in phase 2 - requires fhevmjs integration
-  console.log("Mock vote:", { proposalId, choice });
-  throw new Error("FHE voting not yet implemented - see docs/ui-flow.md");
+export async function voteTx(
+  proposalId: number,
+  choice: boolean,
+  account: string
+) {
+  if (!CONTRACT_ADDRESS || typeof window === "undefined" || !window.ethereum) {
+    // Fallback to localStorage if not connected
+    if (typeof window !== "undefined") {
+      const votesKey = `votes-${account}`;
+      const existingVotes = JSON.parse(localStorage.getItem(votesKey) || "{}");
+      existingVotes[proposalId] = { choice, timestamp: Date.now() };
+      localStorage.setItem(votesKey, JSON.stringify(existingVotes));
+      console.log("Vote stored locally (fallback):", { proposalId, choice, account });
+    }
+    return { success: true };
+  }
+
+  try {
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const contract = new ethers.Contract(CONTRACT_ADDRESS, VOTING_DAO_ABI, signer);
+
+    console.log("Encrypting vote...");
+    const { encryptedChoice, inputProof } = await encryptVote(choice, CONTRACT_ADDRESS, account);
+    
+    console.log("Submitting encrypted vote to contract...");
+    const tx = await contract.vote(proposalId, encryptedChoice, inputProof);
+    
+    console.log("Vote transaction submitted:", tx.hash);
+    const receipt = await tx.wait();
+    
+    console.log("Vote confirmed on-chain:", {
+      proposalId,
+      txHash: receipt?.hash,
+      blockNumber: receipt?.blockNumber,
+    });
+
+    // Also store locally for UI consistency until reveal
+    if (typeof window !== "undefined") {
+      const votesKey = `votes-${account}`;
+      const existingVotes = JSON.parse(localStorage.getItem(votesKey) || "{}");
+      existingVotes[proposalId] = { choice, timestamp: Date.now(), onChain: true };
+      localStorage.setItem(votesKey, JSON.stringify(existingVotes));
+    }
+
+    return { success: true, txHash: receipt?.hash };
+  } catch (error) {
+    console.error("FHE voting failed:", error);
+    
+    // Fallback to localStorage on error
+    if (typeof window !== "undefined") {
+      const votesKey = `votes-${account}`;
+      const existingVotes = JSON.parse(localStorage.getItem(votesKey) || "{}");
+      existingVotes[proposalId] = { choice, timestamp: Date.now(), error: true };
+      localStorage.setItem(votesKey, JSON.stringify(existingVotes));
+      console.log("Vote stored locally (error fallback):", { proposalId, choice, account });
+    }
+
+    throw error;
+  }
+}
+
+// Helper function to get user's votes from localStorage
+export function getUserVotes(
+  account: string
+): Record<number, { choice: boolean; timestamp: number; onChain?: boolean; error?: boolean }> {
+  if (typeof window === "undefined") return {};
+  const votesKey = `votes-${account}`;
+  return JSON.parse(localStorage.getItem(votesKey) || "{}");
 }
 
 export async function requestRevealTx(proposalId: number) {
@@ -309,12 +346,34 @@ export async function requestRevealTx(proposalId: number) {
       signer
     );
 
+    console.log("Requesting reveal for proposal:", proposalId);
     const tx = await contract.requestReveal(proposalId);
+    console.log("Reveal transaction sent:", tx.hash);
+
     const receipt = await tx.wait();
+    console.log("Reveal transaction confirmed:", receipt.hash);
 
     return { txHash: receipt.hash };
   } catch (error) {
     console.error("Failed to request reveal:", error);
     throw error;
+  }
+}
+
+export async function deleteProposalMetadata(
+  ipfsHash: string
+): Promise<boolean> {
+  try {
+    console.log("Deleting proposal metadata:", ipfsHash);
+    const success = await ipfs.delete(ipfsHash);
+    if (success) {
+      console.log("✅ Proposal metadata deleted successfully");
+    } else {
+      console.warn("⚠️ Failed to delete proposal metadata");
+    }
+    return success;
+  } catch (error) {
+    console.error("Failed to delete proposal metadata:", error);
+    return false;
   }
 }

@@ -3,7 +3,22 @@ export const VOTING_DAO_ABI = [
   {
     inputs: [
       {
-        internalType: "bytes32",
+        internalT  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint256",
+        "name": "id",
+        "type": "uint256"
+      }
+    ],
+    "name": "requestReveal",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "anonymous": false,: "bytes32",
         name: "ipfsHash",
         type: "bytes32",
       },
@@ -127,42 +142,6 @@ export const VOTING_DAO_ABI = [
       },
     ],
     stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "id",
-        type: "uint256",
-      },
-    ],
-    name: "requestReveal",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "id",
-        type: "uint256",
-      },
-      {
-        internalType: "externalEbool",
-        name: "encChoice",
-        type: "bytes32",
-      },
-      {
-        internalType: "bytes",
-        name: "inputProof",
-        type: "bytes",
-      },
-    ],
-    name: "vote",
-    outputs: [],
-    stateMutability: "nonpayable",
     type: "function",
   },
   {
