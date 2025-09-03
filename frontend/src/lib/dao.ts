@@ -299,9 +299,14 @@ export async function fetchProposals(
     );
 
     // Filter out failed proposals and sort newest first
-    const result = proposals
+    const allProposals = proposals
       .filter(Boolean)
       .sort((a, b) => b!.id - a!.id) as PublicProposal[];
+
+    // Filter out proposals that have been deleted by the user
+    const result = allProposals.filter(
+      (proposal) => !isProposalDeleted(proposal.id, account)
+    );
 
     recordSuccess(); // Mark successful request
     return result;
@@ -596,4 +601,39 @@ export async function checkProposalRevealStatus(proposalId: number): Promise<{
     );
     return null;
   }
+}
+
+// Functions to track deleted proposals locally
+export function markProposalAsDeleted(
+  proposalId: number,
+  account: string
+): void {
+  if (typeof window === "undefined") return;
+
+  const deletedKey = `deleted-proposals-${account}`;
+  const deleted = JSON.parse(localStorage.getItem(deletedKey) || "[]");
+
+  if (!deleted.includes(proposalId)) {
+    deleted.push(proposalId);
+    localStorage.setItem(deletedKey, JSON.stringify(deleted));
+  }
+}
+
+export function isProposalDeleted(
+  proposalId: number,
+  account?: string
+): boolean {
+  if (typeof window === "undefined" || !account) return false;
+
+  const deletedKey = `deleted-proposals-${account}`;
+  const deleted = JSON.parse(localStorage.getItem(deletedKey) || "[]");
+
+  return deleted.includes(proposalId);
+}
+
+export function getDeletedProposals(account: string): number[] {
+  if (typeof window === "undefined") return [];
+
+  const deletedKey = `deleted-proposals-${account}`;
+  return JSON.parse(localStorage.getItem(deletedKey) || "[]");
 }

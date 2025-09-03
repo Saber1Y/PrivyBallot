@@ -25,6 +25,7 @@ import {
   requestRevealTx,
   deleteProposalMetadata,
   checkProposalRevealStatus,
+  markProposalAsDeleted,
 } from "@/lib/dao";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 
@@ -34,7 +35,20 @@ export default function Dashboard() {
   const [newProposalTitle, setNewProposalTitle] = useState("");
   const [newProposalDescription, setNewProposalDescription] = useState("");
   const [duration, setDuration] = useState("1h");
-  const [loading, setLoading] = useState(false);
+
+  // Loading states
+  const [proposalsLoading, setProposalsLoading] = useState(true);
+  const [creatingProposal, setCreatingProposal] = useState(false);
+  const [votingLoading, setVotingLoading] = useState<Record<number, boolean>>(
+    {}
+  );
+  const [revealLoading, setRevealLoading] = useState<Record<number, boolean>>(
+    {}
+  );
+  const [deleteLoading, setDeleteLoading] = useState<Record<number, boolean>>(
+    {}
+  );
+
   const [currentNetwork, setCurrentNetwork] = useState<string>("");
   const [networkError, setNetworkError] = useState<string>("");
 
@@ -124,12 +138,19 @@ export default function Dashboard() {
   // Load proposals on component mount and when auth changes
   const loadProposals = useCallback(
     async (isRevealCheck = false) => {
+      if (!isRevealCheck) {
+        setProposalsLoading(true);
+      }
       try {
         const account = user?.wallet?.address;
         const data = await fetchProposals(account, isRevealCheck);
         setProposals(data);
       } catch (error) {
         console.error("Failed to load proposals:", error);
+      } finally {
+        if (!isRevealCheck) {
+          setProposalsLoading(false);
+        }
       }
     },
     [user?.wallet?.address]
@@ -156,7 +177,7 @@ export default function Dashboard() {
   const createProposal = async () => {
     if (!newProposalTitle.trim() || !newProposalDescription.trim()) return;
 
-    setLoading(true);
+    setCreatingProposal(true);
     try {
       const durationMap: Record<string, number> = {
         "5m": 300,
@@ -187,11 +208,13 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Failed to create proposal:", error);
     }
-    setLoading(false);
+    setCreatingProposal(false);
   };
 
   const vote = async (id: number, choice: "yes" | "no") => {
     if (!user?.wallet?.address) return;
+
+    setVotingLoading((prev) => ({ ...prev, [id]: true }));
 
     try {
       await voteTx(id, choice === "yes", user.wallet.address);
@@ -216,10 +239,14 @@ export default function Dashboard() {
       console.error("Failed to vote:", error);
       // Show user-friendly error
       alert("Failed to submit vote. Please check console for details.");
+    } finally {
+      setVotingLoading((prev) => ({ ...prev, [id]: false }));
     }
   };
 
   const requestReveal = async (id: number) => {
+    setRevealLoading((prev) => ({ ...prev, [id]: true }));
+
     try {
       // Update UI to show pending state
       setProposals(
@@ -260,6 +287,7 @@ export default function Dashboard() {
                     : p
                 )
               );
+              setRevealLoading((prev) => ({ ...prev, [id]: false }));
               return;
             }
           } catch (error) {
@@ -276,6 +304,7 @@ export default function Dashboard() {
             p.id === id ? { ...p, decryptionPending: false } : p
           )
         );
+        setRevealLoading((prev) => ({ ...prev, [id]: false }));
       };
 
       // Start polling in background
@@ -288,6 +317,7 @@ export default function Dashboard() {
           p.id === id ? { ...p, decryptionPending: false } : p
         )
       );
+      setRevealLoading((prev) => ({ ...prev, [id]: false }));
       // Show user-friendly error
       alert("Failed to request reveal. Please check console for details.");
     }
@@ -298,47 +328,56 @@ export default function Dashboard() {
 
     // Check if user is the creator
     if (proposal.creator.toLowerCase() !== user.wallet.address.toLowerCase()) {
-      console.warn("Only the proposal creator can delete it");
+      alert("Only the proposal creator can delete it");
       return;
     }
 
-    // Allow deletion even if metadata is null (for corrupted/truncated IPFS hashes)
+    // Simplified confirmation message
     const confirmMessage = proposal.metadata
-      ? `Are you sure you want to delete the IPFS metadata for "${proposal.metadata.title}"?\n\nNote: This only removes the metadata from IPFS. The proposal record will remain on the blockchain.`
-      : `Are you sure you want to delete the IPFS metadata for Proposal #${proposal.id}?\n\nNote: This only removes metadata from IPFS (if possible). The proposal record will remain on the blockchain.`;
+      ? `Are you sure you want to delete "${proposal.metadata.title}"?`
+      : `Are you sure you want to delete Proposal #${proposal.id}?`;
 
     if (!confirm(confirmMessage)) {
       return;
     }
 
+    setDeleteLoading((prev) => ({ ...prev, [proposal.id]: true }));
+
     try {
-      console.log("Deleting proposal metadata:", proposal.ipfsHash);
+      console.log("Deleting proposal:", proposal.id);
+
+      // Mark the proposal as deleted locally (this persists across refreshes)
+      markProposalAsDeleted(proposal.id, user.wallet.address);
 
       // Optimistically remove the proposal from UI immediately
       setProposals((prevProposals) =>
         prevProposals.filter((p) => p.id !== proposal.id)
       );
 
-      const success = await deleteProposalMetadata(proposal.ipfsHash);
-
-      if (success) {
-        console.log("✅ Proposal metadata deletion completed");
-        // Proposal already removed from UI, no need to reload
-      } else {
-        console.warn("⚠️ Proposal metadata deletion may have failed");
-        // Since deletion might have failed, reload to get accurate state
-        await loadProposals();
+      // Also try to delete IPFS metadata (best effort)
+      try {
+        await deleteProposalMetadata(proposal.ipfsHash);
+        console.log("✅ IPFS metadata deletion completed");
+      } catch (error) {
+        console.warn(
+          "⚠️ IPFS metadata deletion failed, but proposal marked as deleted locally:",
+          error
+        );
       }
+
+      console.log("✅ Proposal deleted successfully");
     } catch (error) {
       console.error("Error deleting proposal:", error);
       // On error, reload proposals to restore accurate state
       await loadProposals();
+    } finally {
+      setDeleteLoading((prev) => ({ ...prev, [proposal.id]: false }));
     }
   };
 
   const handleProposalExpire = useCallback(async () => {
     // Add debouncing to prevent infinite loops and rate limiting
-    if (loading) return;
+    if (proposalsLoading) return;
 
     console.log(
       "Proposal expired, but skipping refresh to avoid rate limiting"
@@ -349,7 +388,7 @@ export default function Dashboard() {
 
     // Don't automatically refresh to avoid hitting IPFS rate limits
     // The user can manually refresh if needed
-  }, [loading]);
+  }, [proposalsLoading]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -432,11 +471,11 @@ export default function Dashboard() {
             <Button
               variant="outline"
               onClick={() => loadProposals()}
-              disabled={loading}
+              disabled={proposalsLoading}
               className="flex items-center gap-2"
             >
               <svg
-                className="w-4 h-4"
+                className={`w-4 h-4 ${proposalsLoading ? "animate-spin" : ""}`}
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -448,11 +487,32 @@ export default function Dashboard() {
                   d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
                 />
               </svg>
-              Refresh
+              {proposalsLoading ? "Loading..." : "Refresh"}
             </Button>
           </div>
           <div className="space-y-4">
-            {proposals.length === 0 ? (
+            {proposalsLoading ? (
+              // Loading skeletons
+              <>
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Card key={i}>
+                    <CardHeader>
+                      <div className="animate-pulse">
+                        <div className="h-6 bg-gray-200 rounded w-3/4 mb-2"></div>
+                        <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="animate-pulse space-y-3">
+                        <div className="h-4 bg-gray-200 rounded w-full"></div>
+                        <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+                        <div className="h-10 bg-gray-200 rounded w-32"></div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </>
+            ) : proposals.length === 0 ? (
               <Card>
                 <CardContent className="text-center py-8">
                   <p className="text-gray-500 mb-2">No proposals found</p>
@@ -519,17 +579,69 @@ export default function Dashboard() {
                       <div className="flex space-x-2">
                         <Button
                           onClick={() => vote(p.id, "yes")}
-                          disabled={p.hasVoted}
+                          disabled={p.hasVoted || votingLoading[p.id]}
                           className="bg-green-600 hover:bg-green-700"
                         >
-                          {p.hasVoted ? "✓ " : ""}Yes
+                          {votingLoading[p.id] ? (
+                            <>
+                              <svg
+                                className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                ></circle>
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
+                              </svg>
+                              Voting...
+                            </>
+                          ) : (
+                            <>{p.hasVoted ? "✓ " : ""}Yes</>
+                          )}
                         </Button>
                         <Button
                           onClick={() => vote(p.id, "no")}
-                          disabled={p.hasVoted}
+                          disabled={p.hasVoted || votingLoading[p.id]}
                           className="bg-red-600 hover:bg-red-700"
                         >
-                          {p.hasVoted ? "✓ " : ""}No
+                          {votingLoading[p.id] ? (
+                            <>
+                              <svg
+                                className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                              >
+                                <circle
+                                  className="opacity-25"
+                                  cx="12"
+                                  cy="12"
+                                  r="10"
+                                  stroke="currentColor"
+                                  strokeWidth="4"
+                                ></circle>
+                                <path
+                                  className="opacity-75"
+                                  fill="currentColor"
+                                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                ></path>
+                              </svg>
+                              Voting...
+                            </>
+                          ) : (
+                            <>{p.hasVoted ? "✓ " : ""}No</>
+                          )}
                         </Button>
                       </div>
                     ) : p.revealed ? (
@@ -577,15 +689,18 @@ export default function Dashboard() {
                           </Button>
                         )}
                       </div>
-                    ) : p.decryptionPending ? (
+                    ) : p.decryptionPending || revealLoading[p.id] ? (
                       <div className="flex items-center gap-2 text-blue-600">
-                        <Clock className="h-4 w-4" />
-                        Decrypting results...
+                        <Clock className="h-4 w-4 animate-pulse" />
+                        {revealLoading[p.id]
+                          ? "Requesting reveal..."
+                          : "Decrypting results..."}
                       </div>
                     ) : (
                       <Button
                         onClick={() => requestReveal(p.id)}
                         variant="outline"
+                        disabled={revealLoading[p.id]}
                         className="flex items-center gap-2"
                       >
                         <Eye className="h-4 w-4" />
@@ -606,11 +721,40 @@ export default function Dashboard() {
                             onClick={() => deleteProposal(p)}
                             variant="outline"
                             size="sm"
+                            disabled={deleteLoading[p.id]}
                             className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            title="Delete IPFS metadata (proposal will remain on blockchain)"
+                            title="Delete proposal (removes from your view)"
                           >
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Delete Metadata
+                            {deleteLoading[p.id] ? (
+                              <>
+                                <svg
+                                  className="animate-spin -ml-1 mr-1 h-4 w-4"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <circle
+                                    className="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                  ></circle>
+                                  <path
+                                    className="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                  ></path>
+                                </svg>
+                                Deleting...
+                              </>
+                            ) : (
+                              <>
+                                <Trash2 className="h-4 w-4 mr-1" />
+                                Delete
+                              </>
+                            )}
                           </Button>
                         )}
                     </div>
@@ -657,11 +801,37 @@ export default function Dashboard() {
                     disabled={
                       !newProposalTitle.trim() ||
                       !newProposalDescription.trim() ||
-                      loading
+                      creatingProposal
                     }
                     className="flex-1"
                   >
-                    {loading ? "Creating..." : "Create Proposal"}
+                    {creatingProposal ? (
+                      <>
+                        <svg
+                          className="animate-spin -ml-1 mr-2 h-4 w-4"
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                        >
+                          <circle
+                            className="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            strokeWidth="4"
+                          ></circle>
+                          <path
+                            className="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                          ></path>
+                        </svg>
+                        Creating...
+                      </>
+                    ) : (
+                      "Create Proposal"
+                    )}
                   </Button>
                 </div>
               </CardContent>
