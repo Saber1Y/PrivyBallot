@@ -6,7 +6,8 @@ import {SepoliaConfig} from "@fhevm/solidity/config/ZamaConfig.sol";
 
 contract ConfidentialVotingDAO is SepoliaConfig {
     struct Proposal {
-        string title;
+        bytes32 ipfsHash; // Points to metadata on IPFS
+        address creator;
         uint64 deadline; // unix seconds
         euint128 yesCt; // encrypted yes count
         euint128 noCt; // encrypted no count
@@ -25,7 +26,7 @@ contract ConfidentialVotingDAO is SepoliaConfig {
     mapping(uint256 => uint256) private requestToProposal;
 
     // --- events
-    event ProposalCreated(uint256 indexed id, string title, uint64 deadline);
+    event ProposalCreated(uint256 indexed id, address indexed creator, bytes32 ipfsHash, uint64 deadline);
     event VoteCast(uint256 indexed id, address indexed voter);
     event RevealRequested(uint256 indexed id, uint256 requestId);
     event Revealed(uint256 indexed id, uint128 yes, uint128 no);
@@ -42,12 +43,14 @@ contract ConfidentialVotingDAO is SepoliaConfig {
     }
 
     // --- create
-    function createProposal(string calldata title, uint64 durationSeconds) external returns (uint256 id) {
+    function createProposal(bytes32 ipfsHash, uint64 durationSeconds) external returns (uint256 id) {
         require(durationSeconds > 0, "duration=0");
+        require(ipfsHash != bytes32(0), "empty ipfs hash");
         id = nextProposalId++;
 
         Proposal storage p = proposals[id];
-        p.title = title;
+        p.ipfsHash = ipfsHash;
+        p.creator = msg.sender;
         p.deadline = uint64(block.timestamp) + durationSeconds;
 
         // initialize encrypted tallies (trivial encryption)
@@ -58,7 +61,7 @@ contract ConfidentialVotingDAO is SepoliaConfig {
         FHE.allowThis(p.yesCt);
         FHE.allowThis(p.noCt);
 
-        emit ProposalCreated(id, title, p.deadline);
+        emit ProposalCreated(id, msg.sender, ipfsHash, p.deadline);
     }
 
     /// @notice Cast a confidential binary vote (true = yes, false = no)
@@ -125,5 +128,31 @@ contract ConfidentialVotingDAO is SepoliaConfig {
         p.decryptionPending = false;
 
         emit Revealed(id, yesPlain, noPlain);
+    }
+
+    // --- read
+    /// @notice Get proposal data for frontend (without FHE types)
+    function getProposalPublic(
+        uint256 id
+    )
+        external
+        view
+        returns (
+            bytes32 ipfsHash,
+            address creator,
+            uint64 deadline,
+            bool revealed,
+            bool decryptionPending,
+            uint128 yes,
+            uint128 no
+        )
+    {
+        Proposal storage p = proposals[id];
+        return (p.ipfsHash, p.creator, p.deadline, p.revealed, p.decryptionPending, p.yes, p.no);
+    }
+
+    /// @notice Check if proposal exists
+    function proposalExists(uint256 id) external view returns (bool) {
+        return proposals[id].deadline > 0;
     }
 }

@@ -314,10 +314,11 @@ export default function Landing() {
           <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 to-indigo-600 p-8 md:p-10 text-white flex flex-col md:flex-row items-center justify-between gap-6">
             <div>
               <h3 className="text-2xl font-bold mb-2">
-                Ready to try PrivyBallot?
+                Ready to participate in governance?
               </h3>
               <p className="text-white/90">
-                Open the dashboard and create your first proposal in seconds.
+                Enter the dashboard to vote on active proposals or create your
+                own.
               </p>
             </div>
             <Link href="/dashboard">
@@ -325,7 +326,7 @@ export default function Landing() {
                 variant="ghost"
                 className="bg-white text-blue-700 hover:bg-gray-100"
               >
-                Go to Dashboard
+                Enter App
               </Button>
             </Link>
             <Meteors number={14} className="bg-white/70 before:from-white/80" />
