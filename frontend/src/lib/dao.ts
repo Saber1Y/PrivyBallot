@@ -13,6 +13,8 @@ const MAX_REQUESTS_PER_MINUTE = 10; // Increased for reveal polling
 const MAX_CONSECUTIVE_ERRORS = 3;
 const ERROR_BACKOFF_TIME = 15000; // 15 seconds backoff (reduced)
 
+const SEPOLIA_CHAIN_ID = 11155111;
+
 function shouldAllowRequest(isRevealCheck = false): boolean {
   const now = Date.now();
 
@@ -144,16 +146,16 @@ export async function fetchProposals(
     });
 
     // Check if we're on the expected network (localhost)
-    const expectedChainId = 31337; // localhost
+
+    const expectedChainId = SEPOLIA_CHAIN_ID; // Sepolia
     if (Number(network.chainId) !== expectedChainId) {
       console.warn(
-        `⚠️  Wrong network! Connected to ${network.name} (chainId: ${network.chainId}), but contract is deployed on localhost (chainId: ${expectedChainId})`
+        `⚠️  Wrong network! Connected to ${network.name} (chainId: ${network.chainId}), but contract is deployed on Sepolia (chainId: ${expectedChainId})`
       );
-      console.log("Please switch to localhost network in your wallet");
+      console.log("Please switch to Sepolia network in your wallet");
       recordError();
       return [];
     }
-
     // Check if contract exists at the address - potential circuit breaker trigger
     let code;
     try {
@@ -491,13 +493,14 @@ export async function voteTx(
 
 // Helper function to get user's votes from localStorage
 export function getUserVotes(
-  account: string
+  account: string,
+  chainId: number
 ): Record<
   number,
   { choice: boolean; timestamp: number; onChain?: boolean; error?: boolean }
 > {
   if (typeof window === "undefined") return {};
-  const votesKey = `votes-${account}`;
+  const votesKey = `votes-${account}-${chainId}`;
   return JSON.parse(localStorage.getItem(votesKey) || "{}");
 }
 

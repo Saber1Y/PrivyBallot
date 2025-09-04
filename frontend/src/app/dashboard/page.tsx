@@ -70,9 +70,7 @@ export default function Dashboard() {
         case 11155111:
           networkName = "Sepolia Testnet";
           break;
-        case 31337:
-          networkName = "Localhost";
-          break;
+
         default:
           networkName = `Unknown (${chainId})`;
       }
@@ -81,10 +79,10 @@ export default function Dashboard() {
       setNetworkError("");
 
       // Check if we're on the expected network (localhost for development)
-      const expectedChainId = 31337; // Localhost
+      const expectedChainId = 11155111; // Sepolia
       if (chainId !== expectedChainId) {
         setNetworkError(
-          `Please switch to Localhost network. Currently on: ${networkName}`
+          `Please switch to Sepolia network. Currently on: ${networkName}`
         );
       }
     } catch (error) {

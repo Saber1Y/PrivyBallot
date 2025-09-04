@@ -57,6 +57,16 @@ const config: HardhatUserConfig = {
       chainId: 11155111,
       url: "https://rpc.sepolia.org",
     },
+    // Zama FHE Devnet
+    zama: {
+      accounts: {
+        mnemonic: MNEMONIC,
+        path: "m/44'/60'/0'/0/",
+        count: 10,
+      },
+      chainId: 8009,
+      url: "https://devnet.zama.ai",
+    },
   },
   paths: {
     artifacts: "./artifacts",

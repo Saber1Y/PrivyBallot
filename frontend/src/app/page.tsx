@@ -14,9 +14,6 @@ export default function Landing() {
       <header className="sticky top-0 z-10 bg-white/70 backdrop-blur border-b border-gray-200">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-md bg-blue-600 text-white flex items-center justify-center font-bold">
-              PB
-            </div>
             <span className="font-semibold text-gray-900">PrivyBallot</span>
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-sm text-gray-700">
@@ -30,7 +27,7 @@ export default function Landing() {
               Dashboard
             </Link>
             <a
-              href="https://github.com/"
+              href="https://github.com/Saber1Y/PrivyBallot"
               target="_blank"
               rel="noreferrer"
               className="hover:text-gray-900"
@@ -340,7 +337,7 @@ export default function Landing() {
           <p>© {new Date().getFullYear()} PrivyBallot. All rights reserved.</p>
           <div className="flex items-center gap-4">
             <a
-              href="https://github.com/"
+              href="https://github.com/Saber1Y/PrivyBallot"
               target="_blank"
               rel="noreferrer"
               className="hover:text-gray-900"
