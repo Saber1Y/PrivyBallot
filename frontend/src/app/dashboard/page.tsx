@@ -1,21 +1,5 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
-import { usePrivy } from "@privy-io/react-auth";
-import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Input } from "@/components/ui/Input";
-import { Badge } from "@/components/ui/Badge";
-import {
-  PlusCircle,
-  LogIn,
-  LogOut,
-  Clock,
-  CheckCircle,
-  Eye,
-  Network,
-  Trash2,
-} from "lucide-react";
 import {
   fetchProposals,
   createProposalTx,
@@ -27,9 +11,28 @@ import {
   checkProposalRevealStatus,
   markProposalAsDeleted,
 } from "@/lib/dao";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import { usePrivy } from "@privy-io/react-auth";
+import { Button } from "@/components/ui/Button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import Input from "@/components/ui/Input";
+import { Badge } from "@/components/ui/Badge";
+import {
+  PlusCircle,
+  LogIn,
+  LogOut,
+  Clock,
+  CheckCircle,
+  Eye,
+  Network,
+  Trash2,
+  ArrowLeft,
+} from "lucide-react";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 
 export default function Dashboard() {
+  const router = useRouter();
   const { ready, authenticated, login, logout, user } = usePrivy();
   const [proposals, setProposals] = useState<PublicProposal[]>([]);
   const [newProposalTitle, setNewProposalTitle] = useState("");
@@ -78,7 +81,7 @@ export default function Dashboard() {
       setCurrentNetwork(networkName);
       setNetworkError("");
 
-      // Check if we're on the expected network (localhost for development)
+      // Check if we're on the expected network (Sepolia for production)
       const expectedChainId = 11155111; // Sepolia
       if (chainId !== expectedChainId) {
         setNetworkError(
@@ -91,15 +94,15 @@ export default function Dashboard() {
     }
   }, []);
 
-  // Switch to localhost network
-  const switchToLocalhost = async () => {
+  // Switch to Sepolia network
+  const switchToSepolia = async () => {
     if (typeof window === "undefined" || !window.ethereum) return;
 
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (window.ethereum as any).request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0x7a69" }], // 31337 in hex
+        params: [{ chainId: "0xaa36a7" }], // 11155111 in hex (Sepolia)
       });
       await checkNetwork();
     } catch (error: unknown) {
@@ -111,21 +114,24 @@ export default function Dashboard() {
             method: "wallet_addEthereumChain",
             params: [
               {
-                chainId: "0x7a69",
-                chainName: "Localhost",
+                chainId: "0xaa36a7",
+                chainName: "Sepolia Testnet",
                 nativeCurrency: {
                   name: "Ethereum",
                   symbol: "ETH",
                   decimals: 18,
                 },
-                rpcUrls: ["http://127.0.0.1:8545"],
-                blockExplorerUrls: [],
+                rpcUrls: [
+                  "https://sepolia.infura.io/v3/",
+                  "https://rpc.sepolia.org",
+                ],
+                blockExplorerUrls: ["https://sepolia.etherscan.io"],
               },
             ],
           });
           await checkNetwork();
         } catch (addError) {
-          console.error("Failed to add localhost network:", addError);
+          console.error("Failed to add Sepolia network:", addError);
         }
       } else {
         console.error("Failed to switch network:", error);
@@ -392,20 +398,33 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b p-4">
         <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-xl font-bold">PrivyBallot Dashboard</h1>
-            {authenticated && currentNetwork && (
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-sm text-gray-600">
-                  Network: {currentNetwork}
-                </span>
-                {networkError && (
-                  <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
-                    {networkError}
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push("/")}
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Home
+            </Button>
+            <div>
+              <h1 className="text-xl font-bold cursor-pointer">
+                PrivyBallot Dashboard
+              </h1>
+              {authenticated && currentNetwork && (
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-sm text-gray-600">
+                    Network: {currentNetwork}
                   </span>
-                )}
-              </div>
-            )}
+                  {networkError && (
+                    <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
+                      {networkError}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -413,11 +432,11 @@ export default function Dashboard() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={switchToLocalhost}
+                onClick={switchToSepolia}
                 className="text-xs"
               >
                 <Network className="mr-1 h-3 w-3" />
-                Localhost
+                Decentralized
               </Button>
             )}
             {ready && (
@@ -438,6 +457,22 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-4xl mx-auto p-6 space-y-6">
+        {/* Decentralized Voting Platform Banner */}
+        <div className="bg-gradient-to-r from-purple-100 to-blue-100 border border-purple-200 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <div className="text-2xl">🗳️</div>
+            <div>
+              <h3 className="font-semibold text-purple-800 mb-1">
+                PrivyBallot - Decentralized Voting
+              </h3>
+              <p className="text-purple-700 text-sm">
+                Secure, transparent, and decentralized voting platform. Your
+                votes are cryptographically protected and stored on distributed
+                networks.
+              </p>
+            </div>
+          </div>
+        </div>
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
@@ -456,9 +491,9 @@ export default function Dashboard() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Encryption</CardTitle>
+              <CardTitle>Security</CardTitle>
             </CardHeader>
-            <CardContent>FHE-ready</CardContent>
+            <CardContent>Decentralized Storage</CardContent>
           </Card>
         </div>
 

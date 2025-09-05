@@ -2,16 +2,16 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {
-  size?: "sm" | "md" | "lg";
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size"> {
+  inputSize?: "sm" | "md" | "lg";
 }
 
-export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type = "text", size = "md", ...props }, ref) => {
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, type = "text", inputSize = "md", ...props }, ref) => {
     const sizeClasses =
-      size === "sm"
+      inputSize === "sm"
         ? "h-9 px-3 text-sm"
-        : size === "lg"
+        : inputSize === "lg"
         ? "h-12 px-4 text-base"
         : "h-10 px-3 text-sm";
 
@@ -38,4 +38,4 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
 Input.displayName = "Input";
 
-export { Input };
+export default Input;
