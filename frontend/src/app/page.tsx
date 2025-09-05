@@ -14,9 +14,7 @@ export default function Landing() {
       <header className="sticky top-0 z-10 bg-white/70 backdrop-blur border-b border-gray-200">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <span className="font-semibold text-gray-900 cursor-pointer">
-              PrivyBallot
-            </span>
+            <span className="font-semibold text-gray-900">PrivyBallot</span>
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-sm text-gray-700">
             <a href="#features" className="hover:text-gray-900">

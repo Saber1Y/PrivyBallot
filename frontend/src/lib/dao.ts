@@ -1,8 +1,8 @@
-// Decentralized DAO implementation using distributed storage
+// IPFS-only DAO implementation - no blockchain contracts needed
 // This creates a fully decentralized voting system using IPFS for storage
 import { ipfs } from "./ipfs";
 
-console.log("🗳️ PrivyBallot DAO loading...");
+console.log("🌟 IPFS-only DAO loading... (Contract-free mode)");
 
 // In-memory storage for this session + localStorage persistence
 let proposalsStore: PublicProposal[] = [];
@@ -34,12 +34,11 @@ export type PublicProposal = {
   hasVoted?: boolean;
 };
 
-// Decentralized proposal fetching
+// IPFS-only proposal fetching
 export async function fetchProposals(
-  account?: string,
-  _isRevealCheck = false
+  account?: string
 ): Promise<PublicProposal[]> {
-  console.log("📋 Fetching proposals from decentralized storage...");
+  console.log("📋 Fetching proposals from IPFS-only storage...");
 
   try {
     // Calculate vote counts from votesStore
@@ -58,12 +57,6 @@ export async function fetchProposals(
       // Auto-reveal if past deadline
       const revealed = Date.now() > proposal.deadline;
 
-      console.log(
-        `Proposal ${proposal.id}: deadline=${new Date(
-          proposal.deadline
-        ).toISOString()}, now=${new Date().toISOString()}, revealed=${revealed}`
-      );
-
       return {
         ...proposal,
         yes: revealed ? yesVotes : 0,
@@ -75,7 +68,7 @@ export async function fetchProposals(
     });
 
     console.log(
-      `✅ Found ${proposalsWithVotes.length} proposals in distributed storage`
+      `✅ Found ${proposalsWithVotes.length} proposals in IPFS storage`
     );
     return proposalsWithVotes.sort((a, b) => b.id - a.id);
   } catch (error) {
@@ -84,17 +77,17 @@ export async function fetchProposals(
   }
 }
 
-// Decentralized proposal creation
+// IPFS-only proposal creation
 export async function createProposalTx(
   metadata: ProposalMetadata,
   durationSeconds: number
 ) {
-  console.log("📤 Creating proposal...");
+  console.log("📤 Creating proposal in IPFS-only mode...");
 
   try {
-    // Upload metadata to decentralized storage
+    // Upload metadata to IPFS
     const ipfsHash = await ipfs.upload(metadata);
-    console.log("✅ Metadata uploaded to distributed storage:", ipfsHash);
+    console.log("✅ Metadata uploaded to IPFS:", ipfsHash);
 
     // Create proposal in local storage
     const proposal = {
@@ -115,20 +108,20 @@ export async function createProposalTx(
     saveToLocalStorage();
 
     console.log("✅ Proposal created successfully:", proposal.id);
-    return { hash: `proposal_${proposal.id}` };
+    return { hash: `ipfs_${proposal.id}` };
   } catch (error) {
     console.error("❌ Failed to create proposal:", error);
     throw error;
   }
 }
 
-// Decentralized voting
+// IPFS-only voting
 export async function voteTx(
   proposalId: number,
   choice: boolean,
   account: string
 ) {
-  console.log("🗳️ Casting vote:", { proposalId, choice, account });
+  console.log("🗳️ Voting in IPFS-only mode:", { proposalId, choice, account });
 
   try {
     const proposal = proposalsStore.find((p) => p.id === proposalId);
@@ -193,9 +186,9 @@ export function getUserVotes(
   return JSON.parse(localStorage.getItem(votesKey) || "{}");
 }
 
-// Instant reveal (cryptographically secured)
+// IPFS-only reveal (instant since no encryption)
 export async function requestRevealTx(proposalId: number) {
-  console.log("🔍 Revealing proposal results:", proposalId);
+  console.log("🔍 Revealing proposal in IPFS-only mode:", proposalId);
 
   try {
     const proposal = proposalsStore.find((p) => p.id === proposalId);
@@ -208,8 +201,8 @@ export async function requestRevealTx(proposalId: number) {
       throw new Error("Cannot reveal before deadline");
     }
 
-    // Auto-reveal happens in fetchProposals for real-time results
-    console.log("✅ Proposal results revealed");
+    // Auto-reveal happens in fetchProposals, so this is just for compatibility
+    console.log("✅ Proposal revealed (automatic in IPFS-only mode)");
     return { hash: `reveal_${proposalId}` };
   } catch (error) {
     console.error("❌ Reveal failed:", error);
@@ -217,12 +210,12 @@ export async function requestRevealTx(proposalId: number) {
   }
 }
 
-// Distributed metadata deletion
+// IPFS metadata deletion
 export async function deleteProposalMetadata(
   ipfsHash: string
 ): Promise<boolean> {
   try {
-    console.log("🗑️ Deleting proposal metadata:", ipfsHash);
+    console.log("🗑️ Deleting proposal metadata from IPFS:", ipfsHash);
     await ipfs.delete(ipfsHash);
     return true;
   } catch (error) {
@@ -231,7 +224,7 @@ export async function deleteProposalMetadata(
   }
 }
 
-// Check reveal status (real-time results)
+// Check reveal status (instant in IPFS-only mode)
 export async function checkProposalRevealStatus(proposalId: number): Promise<{
   revealed: boolean;
   yes: number;
@@ -272,18 +265,18 @@ export async function checkProposalRevealStatus(proposalId: number): Promise<{
 function saveToLocalStorage() {
   if (typeof window === "undefined") return;
 
-  localStorage.setItem("privyballot_proposals", JSON.stringify(proposalsStore));
-  localStorage.setItem("privyballot_votes", JSON.stringify(votesStore));
-  localStorage.setItem("privyballot_next_id", nextProposalId.toString());
+  localStorage.setItem("ipfs_proposals", JSON.stringify(proposalsStore));
+  localStorage.setItem("ipfs_votes", JSON.stringify(votesStore));
+  localStorage.setItem("ipfs_next_id", nextProposalId.toString());
 }
 
 function loadFromLocalStorage() {
   if (typeof window === "undefined") return;
 
   try {
-    const savedProposals = localStorage.getItem("privyballot_proposals");
-    const savedVotes = localStorage.getItem("privyballot_votes");
-    const savedNextId = localStorage.getItem("privyballot_next_id");
+    const savedProposals = localStorage.getItem("ipfs_proposals");
+    const savedVotes = localStorage.getItem("ipfs_votes");
+    const savedNextId = localStorage.getItem("ipfs_next_id");
 
     if (savedProposals) {
       proposalsStore = JSON.parse(savedProposals);
@@ -297,7 +290,7 @@ function loadFromLocalStorage() {
       nextProposalId = parseInt(savedNextId);
     }
 
-    console.log("✅ Loaded data from localStorage:", {
+    console.log("✅ Loaded IPFS data from localStorage:", {
       proposals: proposalsStore.length,
       votesSets: Object.keys(votesStore).length,
       nextId: nextProposalId,
@@ -356,10 +349,7 @@ export function clearDeletedProposals(account: string): void {
 
 // Demo data helper
 export function addDemoProposals() {
-  if (proposalsStore.length > 0) {
-    console.log("⚠️ Demo proposals already exist, skipping...");
-    return; // Only add if empty
-  }
+  if (proposalsStore.length > 0) return; // Only add if empty
 
   const now = Date.now();
 
@@ -418,7 +408,7 @@ export function addDemoProposals() {
   demoProposals.forEach((demo) => {
     const proposal = {
       id: nextProposalId++,
-      ipfsHash: `distributed_hash_${nextProposalId}`,
+      ipfsHash: `demo_ipfs_hash_${nextProposalId}`,
       metadata: demo.metadata,
       creator: demo.metadata.creator,
       deadline: demo.deadline,
@@ -432,7 +422,6 @@ export function addDemoProposals() {
 
     // Add some demo votes for the ended proposal
     if (demo.deadline < now) {
-      console.log(`Adding demo votes for ended proposal ${proposal.id}`);
       votesStore[proposal.id] = {
         demo_user_1: {
           choice: true,
@@ -455,10 +444,6 @@ export function addDemoProposals() {
           onChain: true,
         },
       };
-      console.log(
-        `Added votes for proposal ${proposal.id}:`,
-        votesStore[proposal.id]
-      );
     }
   });
 
@@ -472,6 +457,4 @@ loadFromLocalStorage();
 // Add demo data if none exists
 addDemoProposals();
 
-console.log(
-  "✅ PrivyBallot DAO loaded successfully - decentralized voting ready!"
-);
+console.log("🌟✅ IPFS-only DAO loaded successfully - fully contract-free!");

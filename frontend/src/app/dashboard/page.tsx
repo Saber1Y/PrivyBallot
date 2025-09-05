@@ -12,7 +12,6 @@ import {
   markProposalAsDeleted,
 } from "@/lib/dao";
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -27,12 +26,10 @@ import {
   Eye,
   Network,
   Trash2,
-  ArrowLeft,
 } from "lucide-react";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
 
 export default function Dashboard() {
-  const router = useRouter();
   const { ready, authenticated, login, logout, user } = usePrivy();
   const [proposals, setProposals] = useState<PublicProposal[]>([]);
   const [newProposalTitle, setNewProposalTitle] = useState("");
@@ -147,7 +144,7 @@ export default function Dashboard() {
       }
       try {
         const account = user?.wallet?.address;
-        const data = await fetchProposals(account, isRevealCheck);
+        const data = await fetchProposals(account);
         setProposals(data);
       } catch (error) {
         console.error("Failed to load proposals:", error);
@@ -398,33 +395,20 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b p-4">
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push("/")}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Home
-            </Button>
-            <div>
-              <h1 className="text-xl font-bold cursor-pointer">
-                PrivyBallot Dashboard
-              </h1>
-              {authenticated && currentNetwork && (
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-sm text-gray-600">
-                    Network: {currentNetwork}
+          <div>
+            <h1 className="text-xl font-bold">PrivyBallot Dashboard</h1>
+            {authenticated && currentNetwork && (
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-sm text-gray-600">
+                  Network: {currentNetwork}
+                </span>
+                {networkError && (
+                  <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
+                    {networkError}
                   </span>
-                  {networkError && (
-                    <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
-                      {networkError}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
@@ -457,22 +441,8 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-4xl mx-auto p-6 space-y-6">
-        {/* Decentralized Voting Platform Banner */}
-        <div className="bg-gradient-to-r from-purple-100 to-blue-100 border border-purple-200 rounded-lg p-4">
-          <div className="flex items-center gap-3">
-            <div className="text-2xl">🗳️</div>
-            <div>
-              <h3 className="font-semibold text-purple-800 mb-1">
-                PrivyBallot - Decentralized Voting
-              </h3>
-              <p className="text-purple-700 text-sm">
-                Secure, transparent, and decentralized voting platform. Your
-                votes are cryptographically protected and stored on distributed
-                networks.
-              </p>
-            </div>
-          </div>
-        </div>
+        {/* IPFS-Only Mode Banner */}
+
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
@@ -491,9 +461,9 @@ export default function Dashboard() {
           </Card>
           <Card>
             <CardHeader>
-              <CardTitle>Security</CardTitle>
+              <CardTitle>Storage</CardTitle>
             </CardHeader>
-            <CardContent>Decentralized Storage</CardContent>
+            <CardContent>IPFS + localStorage</CardContent>
           </Card>
         </div>
 
