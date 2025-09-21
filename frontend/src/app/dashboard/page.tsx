@@ -12,7 +12,6 @@ import {
   markProposalAsDeleted,
 } from "@/lib/dao";
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -30,7 +29,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { CountdownTimer } from "@/components/ui/CountdownTimer";
-
+import { useRouter } from "next/navigation";
 export default function Dashboard() {
   const router = useRouter();
   const { ready, authenticated, login, logout, user } = usePrivy();
@@ -52,47 +51,47 @@ export default function Dashboard() {
     {}
   );
 
-  const [currentNetwork, setCurrentNetwork] = useState<string>("");
-  const [networkError, setNetworkError] = useState<string>("");
+  // const [currentNetwork, setCurrentNetwork] = useState<string>("");
+  // const [networkError, setNetworkError] = useState<string>("");
 
   // Check current network
-  const checkNetwork = useCallback(async () => {
-    if (typeof window === "undefined" || !window.ethereum) return;
+  // const checkNetwork = useCallback(async () => {
+  //   if (typeof window === "undefined" || !window.ethereum) return;
 
-    try {
-      const { BrowserProvider } = await import("ethers");
-      const provider = new BrowserProvider(window.ethereum);
-      const network = await provider.getNetwork();
-      const chainId = Number(network.chainId);
+  //   try {
+  //     const { BrowserProvider } = await import("ethers");
+  //     const provider = new BrowserProvider(window.ethereum);
+  //     const network = await provider.getNetwork();
+  //     const chainId = Number(network.chainId);
 
-      let networkName = "";
-      switch (chainId) {
-        case 1:
-          networkName = "Ethereum Mainnet";
-          break;
-        case 11155111:
-          networkName = "Sepolia Testnet";
-          break;
+  //     let networkName = "";
+  //     switch (chainId) {
+  //       case 1:
+  //         networkName = "Ethereum Mainnet";
+  //         break;
+  //       case 11155111:
+  //         networkName = "Sepolia Testnet";
+  //         break;
 
-        default:
-          networkName = `Unknown (${chainId})`;
-      }
+  //       default:
+  //         networkName = `Unknown (${chainId})`;
+  //     }
 
-      setCurrentNetwork(networkName);
-      setNetworkError("");
+  //     setCurrentNetwork(networkName);
+  //     setNetworkError("");
 
-      // Check if we're on the expected network (Sepolia for production)
-      const expectedChainId = 11155111; // Sepolia
-      if (chainId !== expectedChainId) {
-        setNetworkError(
-          `Please switch to Sepolia network. Currently on: ${networkName}`
-        );
-      }
-    } catch (error) {
-      console.error("Network check failed:", error);
-      setNetworkError("Failed to detect network");
-    }
-  }, []);
+  //     // Check if we're on the expected network (Sepolia for production)
+  //     const expectedChainId = 11155111; // Sepolia
+  //     if (chainId !== expectedChainId) {
+  //       setNetworkError(
+  //         `Please switch to Sepolia network. Currently on: ${networkName}`
+  //       );
+  //     }
+  //   } catch (error) {
+  //     console.error("Network check failed:", error);
+  //     setNetworkError("Failed to detect network");
+  //   }
+  // }, []);
 
   // Switch to Sepolia network
   const switchToSepolia = async () => {
@@ -171,12 +170,6 @@ export default function Dashboard() {
     }
   }, [ready, authenticated, user?.wallet?.address, loadProposals]);
 
-  // Check network when authenticated
-  useEffect(() => {
-    if (ready && authenticated) {
-      checkNetwork();
-    }
-  }, [ready, authenticated, checkNetwork]);
 
   const createProposal = async () => {
     if (!newProposalTitle.trim() || !newProposalDescription.trim()) return;
@@ -395,10 +388,11 @@ export default function Dashboard() {
   }, [proposalsLoading]);
 
   return (
+    
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b p-4">
         <div className="flex justify-between items-center">
-          <div className="flex items-center gap-3">
+          <div className="flex">
             <Button
               variant="ghost"
               size="sm"
@@ -408,21 +402,9 @@ export default function Dashboard() {
               <ArrowLeft className="h-4 w-4" />
               Back
             </Button>
-            <div>
-              <h1 className="text-xl font-bold">PrivyBallot Dashboard</h1>
-              {authenticated && currentNetwork && (
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-sm text-gray-600">
-                    Network: {currentNetwork}
-                  </span>
-                  {networkError && (
-                    <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
-                      {networkError}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
+            <h1 className="text-xl font-bold cursor-pointer">
+              PrivyBallot Dashboard
+            </h1>
           </div>
 
           <div className="flex items-center gap-2">

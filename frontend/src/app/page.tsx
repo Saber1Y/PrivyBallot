@@ -74,9 +74,6 @@ export default function Landing() {
                     </Button>
                   </a>
                 </div>
-                <p className="mt-3 text-sm text-gray-500">
-                  UI-first prototype. FHEVM integration coming next.
-                </p>
               </div>
               <div className="relative">
                 <div className="absolute -inset-4 bg-gradient-to-tr from-blue-200 to-indigo-200 blur-2xl rounded-full opacity-60"></div>
