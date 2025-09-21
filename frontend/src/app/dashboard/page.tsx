@@ -94,49 +94,49 @@ export default function Dashboard() {
   // }, []);
 
   // Switch to Sepolia network
-  const switchToSepolia = async () => {
-    if (typeof window === "undefined" || !window.ethereum) return;
+  // const switchToSepolia = async () => {
+  //   if (typeof window === "undefined" || !window.ethereum) return;
 
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (window.ethereum as any).request({
-        method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0xaa36a7" }], // 11155111 in hex (Sepolia)
-      });
-      await checkNetwork();
-    } catch (error: unknown) {
-      if ((error as { code?: number })?.code === 4902) {
-        // Chain not added to wallet, add it
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (window.ethereum as any).request({
-            method: "wallet_addEthereumChain",
-            params: [
-              {
-                chainId: "0xaa36a7",
-                chainName: "Sepolia Testnet",
-                nativeCurrency: {
-                  name: "Ethereum",
-                  symbol: "ETH",
-                  decimals: 18,
-                },
-                rpcUrls: [
-                  "https://sepolia.infura.io/v3/",
-                  "https://rpc.sepolia.org",
-                ],
-                blockExplorerUrls: ["https://sepolia.etherscan.io"],
-              },
-            ],
-          });
-          await checkNetwork();
-        } catch (addError) {
-          console.error("Failed to add Sepolia network:", addError);
-        }
-      } else {
-        console.error("Failed to switch network:", error);
-      }
-    }
-  };
+  //   try {
+  //     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  //     await (window.ethereum as any).request({
+  //       method: "wallet_switchEthereumChain",
+  //       params: [{ chainId: "0xaa36a7" }], // 11155111 in hex (Sepolia)
+  //     });
+  //     await checkNetwork();
+  //   } catch (error: unknown) {
+  //     if ((error as { code?: number })?.code === 4902) {
+  //       // Chain not added to wallet, add it
+  //       try {
+  //         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  //         await (window.ethereum as any).request({
+  //           method: "wallet_addEthereumChain",
+  //           params: [
+  //             {
+  //               chainId: "0xaa36a7",
+  //               chainName: "Sepolia Testnet",
+  //               nativeCurrency: {
+  //                 name: "Ethereum",
+  //                 symbol: "ETH",
+  //                 decimals: 18,
+  //               },
+  //               rpcUrls: [
+  //                 "https://sepolia.infura.io/v3/",
+  //                 "https://rpc.sepolia.org",
+  //               ],
+  //               blockExplorerUrls: ["https://sepolia.etherscan.io"],
+  //             },
+  //           ],
+  //         });
+  //         await checkNetwork();
+  //       } catch (addError) {
+  //         console.error("Failed to add Sepolia network:", addError);
+  //       }
+  //     } else {
+  //       console.error("Failed to switch network:", error);
+  //     }
+  //   }
+  // };
 
   // Load proposals on component mount and when auth changes
   const loadProposals = useCallback(
@@ -408,17 +408,17 @@ export default function Dashboard() {
           </div>
 
           <div className="flex items-center gap-2">
-            {authenticated && (
+           
               <Button
                 variant="outline"
                 size="sm"
-                onClick={switchToSepolia}
+              
                 className="text-xs"
               >
                 <Network className="mr-1 h-3 w-3" />
                 Decentralized
               </Button>
-            )}
+          
             {ready && (
               <Button onClick={authenticated ? logout : login}>
                 {authenticated ? (
