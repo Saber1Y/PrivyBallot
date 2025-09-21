@@ -4,6 +4,14 @@
 
 PrivyBallot is a privacy-preserving voting system built on Ethereum that ensures complete ballot secrecy while maintaining transparency and verifiability. Using Zama's FHEVM (Fully Homomorphic Encryption Virtual Machine), votes remain encrypted throughout the entire process, with results only revealed after the voting period ends.
 
+## 📺 Demo Video
+
+Watch a walkthrough of PrivyBallot in action:
+
+[PrivyBallot Demo Video on Loom](https://www.loom.com/share/aff352aacbd2416a8630ec5023a95901?sid=ae653287-a0ac-4848-a04d-a7d043b27567)
+
+---
+
 ## 🎯 **What Makes PrivyBallot Special**
 
 ### **Complete Privacy**
