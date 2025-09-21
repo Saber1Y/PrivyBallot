@@ -412,7 +412,6 @@ export default function Dashboard() {
               <Button
                 variant="outline"
                 size="sm"
-              
                 className="text-xs"
               >
                 <Network className="mr-1 h-3 w-3" />
